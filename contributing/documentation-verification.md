@@ -242,3 +242,13 @@ or documenting intended behavior as if it were current.
 - Checked `most.c`:
   - Updated run-script generation to detect `plasim_output.nc` and move it directly to `output/$DATANAME` without invoking `srv2nc`.
 - Checked `docs/reference/parameters/plasim.md` and parameter inventory via `python3 docs/generate_reference.py --check`.
+
+## MoSt NetCDF output button and default updates verification
+
+- Checked `most.c`:
+  - Added `NetCDF Output` checkbox linked to `nnetcdf` (default 0), displayed for PlaSim and hidden for other models.
+  - Updated defaults: `Write Output` (`noutput`) defaults to 1, and `Run with GUI` (`ngui`) defaults to 0.
+  - Updated `WriteRunScript`: when `nnetcdf` is selected, omits `average="-m"` and `srv2nc=...`, moving `plasim_output.nc` directly to `output/$DATANAME` and diagnostic files to `output/$DIAGNAME`.
+  - Updated `Build()`: passes `NETCDFMOD=netcdfmod` when `nnetcdf=1` and `NETCDFMOD=netcdfmod_stub` when `nnetcdf=0`, maintaining rebuild marker `NETCDF`.
+  - Updated `WriteNamelistFile`: writes `NNETCDF` to `plasim_namelist`.
+  - Verified with `MostInputTests.test_defaults_and_netcdf_selection` in `tests/test_defensive.py` and `MostRunScriptTests` in `tests/test_scripts.py`.

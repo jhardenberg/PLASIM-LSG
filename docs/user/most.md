@@ -80,8 +80,10 @@ For a first serial Earth experiment:
    off.
 3. Under **Parallelism** and **Resolution**, set **Cores** to `1`, select
    **T21 [64x32]**, and set **Levels** to `10`.
-4. Under **Options**, enable **Double Precision** and **Write Output**, and
-   disable **Run with GUI** (recommended for all normal and production runs).
+4. Under **Options**, enable **Double Precision** and confirm **Write Output**
+   (enabled by default). To produce direct NetCDF-4 files instead of raw Service format,
+   select **NetCDF Output**. **Run with GUI** is disabled by default for headless
+   performance.
 5. Under **Simulation**, set **Start year** to `2000` and **Years to run** to
    `1`.
 6. Click **Save & Exit** to compile the model and populate `plasim/run/`
@@ -118,9 +120,8 @@ Key points for `-c` mode:
   filename argument reads `most_last_used.cfg`.
 - **Fallback warning:** If the specified `.cfg` file cannot be opened or lacks
   the `[MoSt` header, MoSt prints `Using default configuration` and falls back
-  to internal defaults (which have `Run with GUI = 1` and `Write Output = 0`).
-  Always check the terminal output and keep `Run with GUI = 0` in your `.cfg`
-  file for headless runs.
+  to internal defaults (which have `Run with GUI = 0`, `Write Output = 1`, and
+  `NetCDF Output = 0`).
 
 ## Step 3: Understand the prepared `plasim/run` directory
 
@@ -207,6 +208,13 @@ done
 - **`srv2nc=...`:** Absolute path to the repository's `scripts/srv2nc`
   converter. Update this path if you move the repository or copy the experiment
   to another machine.
+
+```{note}
+**Direct NetCDF output mode:** When **NetCDF Output** is selected in MoSt (`NNETCDF=1`),
+PlaSim directly outputs deflated NetCDF-4 (`plasim_output.nc`). The generated
+`most_plasim_run` script omits `average="-m"` and `srv2nc=...`, moving `plasim_output.nc`
+directly to `output/$DATANAME` and `plasim_diag` to `output/$DIAGNAME` without requiring CDO.
+```
 
 ### What happens during each loop iteration
 

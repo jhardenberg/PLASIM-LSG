@@ -50,6 +50,18 @@ int main(int argc, char **argv)
       printf("READ=%d\n", ReadSettings(argv[2]));
       printf("VALUE=%d\n", SelStart.iv);
    }
+   else if (!strcmp(argv[1], "defaults"))
+   {
+      InitSelections();
+      printf("NOUTPUT=%d\n", noutput);
+      printf("NGUI=%d\n", ngui);
+      printf("NNETCDF=%d\n", nnetcdf);
+      printf("SEL_NETCDF_NO=%d\n", SelNetCDF ? SelNetCDF->no : -1);
+      ChangeModel(PLASIM);
+      printf("PLASIM_SEL_NETCDF_NO=%d\n", SelNetCDF ? SelNetCDF->no : -1);
+      ChangeModel(PUMA);
+      printf("PUMA_SEL_NETCDF_NO=%d\n", SelNetCDF ? SelNetCDF->no : -1);
+   }
    else
    {
       int latitudes = !strcmp(argv[1], "reference32") ? 32 :

@@ -205,6 +205,7 @@ struct SelStruct *SelLsg;
 struct SelStruct *SelIce;
 struct SelStruct *SelAnn;
 struct SelStruct *SelPlanet[PLANETS];
+struct SelStruct *SelNetCDF;
 struct SelStruct *SelSYear;
 struct SelStruct *SelCPU;
 struct SelStruct *SelMulti;
@@ -331,10 +332,11 @@ int Lsg;
 int SimStart;
 int SimYears;
 int nreadsr;
-int noutput;
+int noutput = 1;
+int nnetcdf = 0;
 int ndebug;
 int nprec;
-int ngui;
+int ngui = 0;
 int noro = 1;
 int OroAno;
 int OroClear;
@@ -600,7 +602,7 @@ void ChangeModel(int NewMo)
       if (i == NewMo) Sel->iv = 1;
       else            Sel->iv = 0;
    }
-   if (NewMo == PUMA || NewMo == SAM)
+   if (NewMo == PUMA || NewMo == SAM || NewMo == CAT)
    {
        SelAno->hide = 0;
        SelAnn->no   = 0;
@@ -609,6 +611,7 @@ void ChangeModel(int NewMo)
        SelOro->no   = 0;
        SelSYear->no = 1;
        if (SelLsg) SelLsg->no   = 1;
+       if (SelNetCDF) SelNetCDF->no = 1;
        for (i=0 ; i < PLANETS ; ++i) SelPlanet[i]->no = 1;
    }
    if (NewMo == PLASIM)
@@ -617,6 +620,7 @@ void ChangeModel(int NewMo)
        SelAnn->no   = 1;
        SelOro->no   = 1;
        SelSYear->no = 0;
+       if (SelNetCDF) SelNetCDF->no = 0;
        if (Expert)
        {
           SelOce->no   = 0;
@@ -733,6 +737,10 @@ void UpdateSelections(struct SelStruct *Sel)
          sprintf(text,"%10d",Sel->iv);
          strcpy(Sel->teva,text+10-Sel->edco);
          if (Sel->piv) *Sel->piv = Sel->iv;
+      }
+      if (Sel->type == SEL_CHECK && Sel->piv)
+      {
+         *Sel->piv = Sel->iv;
       }
       if (Sel->type == SEL_REAL || Sel->type == SEL_PLANET)
       {
@@ -1511,8 +1519,23 @@ void InitSelections(void)
    Sel->h    = FixFontHeight + 1;
    Sel->w    = FixFontHeight + 1;
    Sel->yt   = Sel->y + FixFontAscent + 1;
-   Sel->div  = Sel->iv   =  0;
+   Sel->div  = Sel->iv   =  1;
    Sel->piv  = &noutput;
+   *Sel->piv = Sel->iv;
+
+   // NetCDF output switch
+
+   Sel = NewSel(Sel);
+   InitNextSelection(Sel,dyn,"NetCDF Output");
+   Sel->type = SEL_CHECK;
+   Sel->h    = FixFontHeight + 1;
+   Sel->w    = FixFontHeight + 1;
+   Sel->yt   = Sel->y + FixFontAscent + 1;
+   Sel->div  = Sel->iv   =  0;
+   Sel->no   = 1;
+   Sel->piv  = &nnetcdf;
+   *Sel->piv = Sel->iv;
+   SelNetCDF = Sel;
 
    // GUI
 
@@ -1521,8 +1544,9 @@ void InitSelections(void)
    Sel->type = SEL_CHECK;
    Sel->h    = FixFontHeight + 1;
    Sel->w    = FixFontHeight + 1;
-   Sel->div  = Sel->iv   =  1;
+   Sel->div  = Sel->iv   =  0;
    Sel->piv  = &ngui;
+   *Sel->piv = Sel->iv;
 
    // Orography
 
@@ -1801,9 +1825,12 @@ int WriteRunScript(int model)
     } else {
       fprintf(fp,"YEAR2=%d\n",SimYears);
     }
-   fputs("average=\"-m\"  # Comment this line if you do not want monthly averaging\n", fp);
-   getcwd(cwd, sizeof(cwd));
-   fprintf(fp,"srv2nc=%s/scripts/srv2nc\n", cwd);
+   if (!nnetcdf)
+   {
+      fputs("average=\"-m\"  # Comment this line if you do not want monthly averaging\n", fp);
+      getcwd(cwd, sizeof(cwd));
+      fprintf(fp,"srv2nc=%s/scripts/srv2nc\n", cwd);
+   }
    fputs("[ $# == 1 ] && cd $1\n",fp);
    fprintf(fp,"rm -f %s_restart\n",ShortModelName[model]);
    fputs("rm -f Abort_Message\n",fp);
@@ -1840,33 +1867,59 @@ int WriteRunScript(int model)
       fputs("   INST=0\n",fp);
       fputs("   while [ $INST -lt $INSTANCES ]\n   do\n",fp);
       fputs("      EXT=`printf '%02d' $INST`\n",fp);
-      fprintf(fp,"      if [ -e %s_$EXT.nc ]; then\n",outp_name);
-      fprintf(fp,"         mv %s_$EXT.nc ${EXT}_$DATANAME\n",outp_name);
-      fprintf(fp,"      elif [ -e %s_$EXT ]; then\n",outp_name);
-      fprintf(fp,"         mv %s_$EXT ${EXT}_$DATANAME\n",outp_name);
-      fprintf(fp,"      fi\n");
-      fprintf(fp,"      if [ -e %s_$EXT ]; then mv %s_$EXT ${EXT}_$DIAGNAME; fi\n",
-              diag_name,diag_name);
-      fprintf(fp,"      if [ -e %s_status_$EXT ]; then\n",
-              ShortModelName[model]);
-      fprintf(fp,"         cp %s_status_$EXT %s_restart_$EXT\n",
-              ShortModelName[model],ShortModelName[model]);
-      fprintf(fp,"         mv %s_status_$EXT ${EXT}_$RESTNAME\n",ShortModelName[model]);
-      fputs("      fi\n",fp);
+      if (nnetcdf)
+      {
+         fprintf(fp,"      if [ -e %s_$EXT.nc ]; then\n",outp_name);
+         fprintf(fp,"         mv %s_$EXT.nc output/${EXT}_$DATANAME\n",outp_name);
+         fprintf(fp,"      fi\n");
+         fprintf(fp,"      if [ -e %s_$EXT ]; then mv %s_$EXT output/${EXT}_$DIAGNAME; fi\n",
+                 diag_name,diag_name);
+         fprintf(fp,"      if [ -e %s_status_$EXT ]; then\n",
+                 ShortModelName[model]);
+         fprintf(fp,"         cp %s_status_$EXT %s_restart_$EXT\n",
+                 ShortModelName[model],ShortModelName[model]);
+         fprintf(fp,"         mv %s_status_$EXT restart/${EXT}_$RESTNAME\n",ShortModelName[model]);
+         fputs("      fi\n",fp);
+      }
+      else
+      {
+         fprintf(fp,"      if [ -e %s_$EXT.nc ]; then\n",outp_name);
+         fprintf(fp,"         mv %s_$EXT.nc ${EXT}_$DATANAME\n",outp_name);
+         fprintf(fp,"      elif [ -e %s_$EXT ]; then\n",outp_name);
+         fprintf(fp,"         mv %s_$EXT ${EXT}_$DATANAME\n",outp_name);
+         fprintf(fp,"      fi\n");
+         fprintf(fp,"      if [ -e %s_$EXT ]; then mv %s_$EXT ${EXT}_$DIAGNAME; fi\n",
+                 diag_name,diag_name);
+         fprintf(fp,"      if [ -e %s_status_$EXT ]; then\n",
+                 ShortModelName[model]);
+         fprintf(fp,"         cp %s_status_$EXT %s_restart_$EXT\n",
+                 ShortModelName[model],ShortModelName[model]);
+         fprintf(fp,"         mv %s_status_$EXT ${EXT}_$RESTNAME\n",ShortModelName[model]);
+         fputs("      fi\n",fp);
+      }
       fputs("      INST=`expr $INST + 1`\n",fp);
       fputs("   done\n",fp);
    }
    else
    {
       fprintf(fp,"   if [ -e %s ]; then mv %s output/$DIAGNAME; fi\n",diag_name,diag_name);
-      fprintf(fp,"   if [ -e %s.nc ]; then\n",outp_name);
-      fprintf(fp,"      mv %s.nc output/$DATANAME\n",outp_name);
-      fprintf(fp,"   elif [ -e %s ]; then\n",outp_name);
-      fprintf(fp,"      $srv2nc $average %s output/$DATANAME\n",outp_name);
-      fprintf(fp,"   fi\n");
-      fprintf(fp,"   if [ -e ocean_output ]; then $srv2nc $average ocean_output output/$OCENAME; fi\n");
-      fprintf(fp,"   if [ -e ice_output ]; then $srv2nc $average ice_output output/$ICENAME; fi\n");
-      fprintf(fp,"   if [ -e lsg_output ]; then $srv2nc lsg_output output/$LSGNAME; fi\n");
+      if (nnetcdf)
+      {
+         fprintf(fp,"   if [ -e %s.nc ]; then\n",outp_name);
+         fprintf(fp,"      mv %s.nc output/$DATANAME\n",outp_name);
+         fprintf(fp,"   fi\n");
+      }
+      else
+      {
+         fprintf(fp,"   if [ -e %s.nc ]; then\n",outp_name);
+         fprintf(fp,"      mv %s.nc output/$DATANAME\n",outp_name);
+         fprintf(fp,"   elif [ -e %s ]; then\n",outp_name);
+         fprintf(fp,"      $srv2nc $average %s output/$DATANAME\n",outp_name);
+         fprintf(fp,"   fi\n");
+         fprintf(fp,"   if [ -e ocean_output ]; then $srv2nc $average ocean_output output/$OCENAME; fi\n");
+         fprintf(fp,"   if [ -e ice_output ]; then $srv2nc $average ice_output output/$ICENAME; fi\n");
+         fprintf(fp,"   if [ -e lsg_output ]; then $srv2nc lsg_output output/$LSGNAME; fi\n");
+      }
       fprintf(fp,"   if [ -e %s_status ]; then\n",ShortModelName[model]);
       fprintf(fp,"      cp %s_status %s_restart\n",
               ShortModelName[model],ShortModelName[model]);
@@ -2065,6 +2118,22 @@ int Build(int model)
       putenv("OCEANCOUP=cpl_stub");
    }
    if (Latitudes < 4) putenv("FFTMOD=fft991mod");
+   if (model == PLASIM)
+   {
+      if (nnetcdf)
+      {
+         fputs("[ ! -e NETCDF ] && rm -f *.o *.mod *.x\n",fp);
+         fputs("touch NETCDF\n",fp);
+         fputs("export NETCDFMOD=netcdfmod\n",fp);
+         putenv("NETCDFMOD=netcdfmod");
+      }
+      else
+      {
+         fputs("[ -e NETCDF ] && rm -f *.o *.mod *.x NETCDF\n",fp);
+         fputs("export NETCDFMOD=netcdfmod_stub\n",fp);
+         putenv("NETCDFMOD=netcdfmod_stub");
+      }
+   }
    if (porm > 1)
    {
       fputs("[ ! -e MPI ] && rm -f *.o *.mod *.x\n",fp);
@@ -3470,6 +3539,7 @@ void WriteNamelistFile(char *nl,  int instance)
    if (!strcmp(nl,"plasim"))
    {
       fprintf(fp," %-12s=%6d\n","NOUTPUT",noutput);
+      fprintf(fp," %-12s=%6d\n","NNETCDF",nnetcdf);
       fprintf(fp," %-12s=%6d\n","NGUI"  ,ngui);
       fprintf(fp," %-12s=%6d\n","N_START_YEAR",SimStart);
       if (Lsg)        fprintf(fp," %-12s=%6d\n","N_DAYS_PER_YEAR",360);
