@@ -235,7 +235,7 @@ or documenting intended behavior as if it were current.
   - Added direct NetCDF-4 output for mixed-layer ocean `oceanmod` (`ocean_output.nc`, 10 variables: `heata`, `ifluxa`, `fssta`, `dssta`, `qhda`, `fldoa`, `icec`, `sst`, `ls`, `clsst`) and sea ice `icemod` (`ice_output.nc`, 24 variables).
   - LSG ocean coupling continues writing classic Service format (`lsg_output`), converted via `srv2nc`.
   - Chunking configured per horizontal Gaussian slice (`NLON` × `NLAT`) and deflate compression set via `ndeflate` (level 0–9, default 4).
-  - Time-averaging modes: instantaneous (`noutput_avg = 0`), daily mean (`noutput_avg = 1`), monthly mean (`noutput_avg = 2`).
+  - Time-averaging modes: instantaneous (`noutput_avg = 0`), daily mean (`noutput_avg = 1`), monthly mean (`noutput_avg = 2`), recording timestamps at the beginning of each accumulation period relative to the start date across atmosphere, ocean, and sea ice.
   - Fallback stub `netcdfmod_stub.f90` provides graceful build on environments lacking NetCDF libraries, aborting cleanly if `nnetcdf > 0` is requested at runtime.
 - Checked `plasim/src/plasimmod.f90`, `plasim/src/oceanmod.f90`, and `plasim/src/icemod.f90`:
   - Added namelist variables `nnetcdf`, `noutput_avg`, and `ndeflate` with defaults `0`, `1`, `4` respectively, preserving classic Service-format Earth baselines by default.

@@ -548,7 +548,7 @@
 
          ! Write time coordinate
          if (mypid == NROOT) then
-            time_val = (nstep - nstep1 + 1) / real(ntspd, kind=8)
+            time_val = (nstep - n_start_step - nc_acc_count + 1) / real(ntspd, kind=8)
             ret = nf90_put_var(ncid, vid_time, (/ time_val /), &
                                start=(/ nc_time_step /), count=(/ 1 /))
             call nc_check(ret, 'put_var time')
@@ -929,7 +929,7 @@
          ocean_nc_time_step = ocean_nc_time_step + 1
 
          if (mypid == NROOT) then
-            time_val = kstep / real(ktspd, kind=8)
+            time_val = (kstep - n_start_step) / real(ktspd, kind=8)
             ret = nf90_put_var(ncid_ocean, vid_time_oce, (/ time_val /), &
                                start=(/ ocean_nc_time_step /), count=(/ 1 /))
             call nc_check(ret, 'put_var time ocean')
@@ -1160,7 +1160,7 @@
          ice_nc_time_step = ice_nc_time_step + 1
 
          if (mypid == NROOT) then
-            time_val = kstep / real(ktspd, kind=8)
+            time_val = (kstep - n_start_step) / real(ktspd, kind=8)
             ret = nf90_put_var(ncid_ice, vid_time_ice, (/ time_val /), &
                                start=(/ ice_nc_time_step /), count=(/ 1 /))
             call nc_check(ret, 'put_var time ice')

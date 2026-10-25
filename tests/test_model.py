@@ -930,6 +930,14 @@ class NetcdfOutputTests(unittest.TestCase):
         if shutil.which("cdo"):
             ntime = subprocess.check_output(["cdo", "-s", "ntime", str(nc_file)], text=True).strip()
             self.assertEqual(ntime, "2")
+            dates = subprocess.check_output(["cdo", "-s", "showtimestamp", str(nc_file)], text=True)
+            self.assertIn("2000-01-01T00:00:00", dates)
+            dates_oce = subprocess.check_output(["cdo", "-s", "showtimestamp", str(run / "ocean_output.nc")], text=True)
+            self.assertIn("2000-01-01T00:00:00", dates_oce)
+            self.assertNotIn("4000-", dates_oce)
+            dates_ice = subprocess.check_output(["cdo", "-s", "showtimestamp", str(run / "ice_output.nc")], text=True)
+            self.assertIn("2000-01-01T00:00:00", dates_ice)
+            self.assertNotIn("4000-", dates_ice)
         if shutil.which("ncdump"):
             dump = subprocess.check_output(["ncdump", "-h", str(nc_file)], text=True)
             self.assertIn("time = UNLIMITED ; // (2 currently)", dump)
@@ -962,7 +970,7 @@ class NetcdfOutputTests(unittest.TestCase):
             self.assertEqual(ntime, "1")
         if shutil.which("ncdump"):
             dump = subprocess.check_output(["ncdump", "-v", "time", str(nc_file)], text=True)
-            self.assertIn("time = 30 ;", dump)
+            self.assertIn("time = 0 ;", dump)
 
     def test_instantaneous_netcdf_output(self) -> None:
         """Verify direct instantaneous NetCDF-4 output generation with noutput_avg=0 governed by nwpd."""
