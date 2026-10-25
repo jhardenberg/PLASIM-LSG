@@ -27,6 +27,27 @@
       integer :: vid_prw, vid_lsm, vid_z0, vid_as, vid_vegf
       integer :: vid_glac, vid_dwmax, vid_sg
 
+      ! Ocean dataset and dimension IDs
+      integer :: ncid_ocean = -1
+      integer :: dim_lon_oce, dim_lat_oce, dim_time_oce
+      integer :: vid_lon_oce, vid_lat_oce, vid_time_oce
+      integer :: vid_oce_heata, vid_oce_ifluxa, vid_oce_fssta, vid_oce_dssta
+      integer :: vid_oce_qhda, vid_oce_fldoa, vid_oce_icec, vid_oce_sst
+      integer :: vid_oce_ls, vid_oce_clsst
+      integer :: ocean_nc_time_step = 0
+
+      ! Sea ice dataset and dimension IDs
+      integer :: ncid_ice = -1
+      integer :: dim_lon_ice, dim_lat_ice, dim_time_ice
+      integer :: vid_lon_ice, vid_lat_ice, vid_time_ice
+      integer :: vid_ice_heata, vid_ice_ofluxa, vid_ice_tsfluxa, vid_ice_smelta
+      integer :: vid_ice_imelta, vid_ice_cfluxa, vid_ice_fluxca, vid_ice_qmelta
+      integer :: vid_ice_xflxicea, vid_ice_icec, vid_ice_iced, vid_ice_scflxa
+      integer :: vid_ice_cfluxra, vid_ice_cfluxna, vid_ice_ts, vid_ice_zsnow
+      integer :: vid_ice_sst, vid_ice_ls, vid_ice_clicec2, vid_ice_cliced2
+      integer :: vid_ice_icecc, vid_ice_cpmea, vid_ice_croffa, vid_ice_stoia
+      integer :: ice_nc_time_step = 0
+
       ! Tracking counters
       integer :: nc_time_step = 0
       integer :: nc_acc_count = 0
@@ -64,36 +85,47 @@
       end subroutine nc_check
 
       ! ------------------------------------------------------------------
-      !  def_var_2d: define 2D float variable with deflate and chunking
+      !  def_var_2d_file: define 2D float variable with deflate and chunking in target file
       ! ------------------------------------------------------------------
-      subroutine def_var_2d(name, long_name, units, code, vid)
+      subroutine def_var_2d_file(target_ncid, d_lon, d_lat, d_time, name, long_name, units, code, vid)
+         integer,          intent(in)  :: target_ncid, d_lon, d_lat, d_time
          character(len=*), intent(in)  :: name, long_name, units
          integer,          intent(in)  :: code
          integer,          intent(out) :: vid
          integer                       :: dims(3), chunk(3), ret
 
-         dims = (/ dim_lon, dim_lat, dim_time /)
+         dims = (/ d_lon, d_lat, d_time /)
          chunk = (/ NLON, NLAT, 1 /)
 
-         ret = nf90_def_var(ncid, trim(name), NF90_FLOAT, dims, vid)
+         ret = nf90_def_var(target_ncid, trim(name), NF90_FLOAT, dims, vid)
          call nc_check(ret, 'def_var ' // trim(name))
 
          if (ndeflate > 0) then
-            ret = nf90_def_var_deflate(ncid, vid, shuffle=1, deflate=1, deflate_level=ndeflate)
+            ret = nf90_def_var_deflate(target_ncid, vid, shuffle=1, deflate=1, deflate_level=ndeflate)
             call nc_check(ret, 'deflate ' // trim(name))
          endif
 
-         ret = nf90_def_var_chunking(ncid, vid, NF90_CHUNKED, chunk)
+         ret = nf90_def_var_chunking(target_ncid, vid, NF90_CHUNKED, chunk)
          call nc_check(ret, 'chunking ' // trim(name))
 
-         ret = nf90_put_att(ncid, vid, 'long_name', trim(long_name))
+         ret = nf90_put_att(target_ncid, vid, 'long_name', trim(long_name))
          call nc_check(ret, 'put_att long_name ' // trim(name))
 
-         ret = nf90_put_att(ncid, vid, 'units', trim(units))
+         ret = nf90_put_att(target_ncid, vid, 'units', trim(units))
          call nc_check(ret, 'put_att units ' // trim(name))
 
-         ret = nf90_put_att(ncid, vid, 'code', code)
+         ret = nf90_put_att(target_ncid, vid, 'code', code)
          call nc_check(ret, 'put_att code ' // trim(name))
+      end subroutine def_var_2d_file
+
+      ! ------------------------------------------------------------------
+      !  def_var_2d: define 2D float variable with deflate and chunking in primary dataset
+      ! ------------------------------------------------------------------
+      subroutine def_var_2d(name, long_name, units, code, vid)
+         character(len=*), intent(in)  :: name, long_name, units
+         integer,          intent(in)  :: code
+         integer,          intent(out) :: vid
+         call def_var_2d_file(ncid, dim_lon, dim_lat, dim_time, name, long_name, units, code, vid)
       end subroutine def_var_2d
 
       ! ------------------------------------------------------------------
@@ -441,10 +473,10 @@
       end subroutine netcdf_init
 
       ! ------------------------------------------------------------------
-      !  write_field_2d: gather and write 2D variable at current record
+      !  write_field_2d_file: gather and write 2D variable at specified record in target file
       ! ------------------------------------------------------------------
-      subroutine write_field_2d(vid, loc_field)
-         integer, intent(in) :: vid
+      subroutine write_field_2d_file(target_ncid, rec_step, vid, loc_field)
+         integer, intent(in) :: target_ncid, rec_step, vid
          real,    intent(in) :: loc_field(NHOR)
          real                :: glob(NLON*NLAT)
          real(kind=4)        :: out_grid(NLON, NLAT)
@@ -459,10 +491,19 @@
                   out_grid(jlon, jlat) = real(glob(idx), kind=4)
                enddo
             enddo
-            ret = nf90_put_var(ncid, vid, out_grid, start=(/ 1, 1, nc_time_step /), &
+            ret = nf90_put_var(target_ncid, vid, out_grid, start=(/ 1, 1, rec_step /), &
                                count=(/ NLON, NLAT, 1 /))
             call nc_check(ret, 'put_var 2D')
          endif
+      end subroutine write_field_2d_file
+
+      ! ------------------------------------------------------------------
+      !  write_field_2d: gather and write 2D variable at current record
+      ! ------------------------------------------------------------------
+      subroutine write_field_2d(vid, loc_field)
+         integer, intent(in) :: vid
+         real,    intent(in) :: loc_field(NHOR)
+         call write_field_2d_file(ncid, nc_time_step, vid, loc_field)
       end subroutine write_field_2d
 
       ! ------------------------------------------------------------------
@@ -736,6 +777,435 @@
             deallocate(acc_sic, acc_sit, acc_mld, acc_snm, acc_sndc)
             deallocate(acc_prw, oro_gp)
          endif
+
+         call netcdf_ocean_close
+         call netcdf_ice_close
       end subroutine netcdf_close
+
+      ! ==================================================================
+      !  Mixed-Layer Ocean NetCDF Output Subroutines
+      ! ==================================================================
+
+      subroutine inq_ocean_var_ids
+         integer :: ret
+         ret = nf90_inq_varid(ncid_ocean, 'time',   vid_time_oce)
+         ret = nf90_inq_varid(ncid_ocean, 'heata',  vid_oce_heata)
+         ret = nf90_inq_varid(ncid_ocean, 'ifluxa', vid_oce_ifluxa)
+         ret = nf90_inq_varid(ncid_ocean, 'fssta',  vid_oce_fssta)
+         ret = nf90_inq_varid(ncid_ocean, 'dssta',  vid_oce_dssta)
+         ret = nf90_inq_varid(ncid_ocean, 'qhda',   vid_oce_qhda)
+         ret = nf90_inq_varid(ncid_ocean, 'fldoa',  vid_oce_fldoa)
+         ret = nf90_inq_varid(ncid_ocean, 'icec',   vid_oce_icec)
+         ret = nf90_inq_varid(ncid_ocean, 'sst',    vid_oce_sst)
+         ret = nf90_inq_varid(ncid_ocean, 'ls',     vid_oce_ls)
+         ret = nf90_inq_varid(ncid_ocean, 'clsst',  vid_oce_clsst)
+      end subroutine inq_ocean_var_ids
+
+      subroutine netcdf_ocean_init(youtput)
+         character(len=*), intent(in) :: youtput
+         character(len=256)           :: fname, time_units
+         real(kind=4)                 :: coord_lon(NLON), coord_lat(NLAT)
+         integer                      :: jlon, jlat, ret, did_time, existing_len
+
+         if (nnetcdf == 0 .or. noutput == 0) return
+
+         ocean_nc_time_step = 0
+
+         if (mypid /= NROOT) return
+
+         fname = trim(youtput)
+         if (len_trim(fname) == 0) fname = 'ocean_output'
+         if (index(fname, '.nc') == 0) then
+            fname = trim(fname) // '.nc'
+         endif
+
+         if (nrestart > 0) then
+            ret = nf90_open(trim(fname), NF90_WRITE, ncid_ocean)
+            if (ret == NF90_NOERR) then
+               ret = nf90_inq_dimid(ncid_ocean, 'time', did_time)
+               call nc_check(ret, 'inq_dimid time ocean')
+               ret = nf90_inquire_dimension(ncid_ocean, did_time, len=existing_len)
+               call nc_check(ret, 'inquire_dim time ocean')
+               ocean_nc_time_step = existing_len
+               call inq_ocean_var_ids
+               return
+            endif
+         endif
+
+         ret = nf90_create(trim(fname), IOR(NF90_CLOBBER, NF90_NETCDF4), ncid_ocean)
+         call nc_check(ret, 'create ' // trim(fname))
+
+         ret = nf90_put_att(ncid_ocean, NF90_GLOBAL, 'title', 'PlaSim-LSG TNG Mixed Layer Ocean NetCDF Output')
+         ret = nf90_put_att(ncid_ocean, NF90_GLOBAL, 'Conventions', 'CF-1.6')
+         ret = nf90_put_att(ncid_ocean, NF90_GLOBAL, 'source', 'PlaSim-LSG TNG')
+
+         ret = nf90_def_dim(ncid_ocean, 'lon', NLON, dim_lon_oce)
+         call nc_check(ret, 'def_dim lon ocean')
+         ret = nf90_def_dim(ncid_ocean, 'lat', NLAT, dim_lat_oce)
+         call nc_check(ret, 'def_dim lat ocean')
+         ret = nf90_def_dim(ncid_ocean, 'time', NF90_UNLIMITED, dim_time_oce)
+         call nc_check(ret, 'def_dim time ocean')
+
+         ret = nf90_def_var(ncid_ocean, 'lon', NF90_FLOAT, (/ dim_lon_oce /), vid_lon_oce)
+         call nc_check(ret, 'def_var lon ocean')
+         ret = nf90_put_att(ncid_ocean, vid_lon_oce, 'standard_name', 'longitude')
+         ret = nf90_put_att(ncid_ocean, vid_lon_oce, 'long_name', 'longitude')
+         ret = nf90_put_att(ncid_ocean, vid_lon_oce, 'units', 'degrees_east')
+         ret = nf90_put_att(ncid_ocean, vid_lon_oce, 'axis', 'X')
+
+         ret = nf90_def_var(ncid_ocean, 'lat', NF90_FLOAT, (/ dim_lat_oce /), vid_lat_oce)
+         call nc_check(ret, 'def_var lat ocean')
+         ret = nf90_put_att(ncid_ocean, vid_lat_oce, 'standard_name', 'latitude')
+         ret = nf90_put_att(ncid_ocean, vid_lat_oce, 'long_name', 'latitude')
+         ret = nf90_put_att(ncid_ocean, vid_lat_oce, 'units', 'degrees_north')
+         ret = nf90_put_att(ncid_ocean, vid_lat_oce, 'axis', 'Y')
+
+         ret = nf90_def_var(ncid_ocean, 'time', NF90_DOUBLE, (/ dim_time_oce /), vid_time_oce)
+         call nc_check(ret, 'def_var time ocean')
+         ret = nf90_put_att(ncid_ocean, vid_time_oce, 'standard_name', 'time')
+         ret = nf90_put_att(ncid_ocean, vid_time_oce, 'long_name', 'time')
+         write(time_units, '("days since ",I4.4,"-",I2.2,"-01 00:00:00")') n_start_year, n_start_month
+         ret = nf90_put_att(ncid_ocean, vid_time_oce, 'units', trim(time_units))
+         if (n_days_per_year == 360) then
+            ret = nf90_put_att(ncid_ocean, vid_time_oce, 'calendar', '360_day')
+         else if (n_days_per_year == 365) then
+            ret = nf90_put_att(ncid_ocean, vid_time_oce, 'calendar', '365_day')
+         else
+            ret = nf90_put_att(ncid_ocean, vid_time_oce, 'calendar', 'proleptic_gregorian')
+         endif
+         ret = nf90_put_att(ncid_ocean, vid_time_oce, 'axis', 'T')
+
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'heata', 'Heat flux from atm/ice', 'W/m2', 901, vid_oce_heata)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'ifluxa', 'Heat flux into ice', 'W/m2', 902, vid_oce_ifluxa)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'fssta', 'Flux correction', 'W/m2', 903, vid_oce_fssta)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'dssta', 'Heat flux from vertical diffusion', 'W/m2', 904, vid_oce_dssta)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'qhda', 'Heat flux from horizontal diffusion', 'W/m2', 905, vid_oce_qhda)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'fldoa', 'Flux from deep ocean (LSG)', 'W/m2', 906, vid_oce_fldoa)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'icec', 'Sea ice cover', 'fraction', 910, vid_oce_icec)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'sst', 'SST (ML ocean temperature)', 'K', 939, vid_oce_sst)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'ls', 'Land-sea mask', 'fraction', 972, vid_oce_ls)
+         call def_var_2d_file(ncid_ocean, dim_lon_oce, dim_lat_oce, dim_time_oce, &
+                              'clsst', 'Climatological SST', 'K', 990, vid_oce_clsst)
+
+         ret = nf90_enddef(ncid_ocean)
+         call nc_check(ret, 'enddef ocean')
+
+         do jlon = 1, NLON
+            coord_lon(jlon) = real((jlon - 1) * 360.0 / NLON, kind=4)
+         enddo
+         ret = nf90_put_var(ncid_ocean, vid_lon_oce, coord_lon)
+         call nc_check(ret, 'put_var lon ocean')
+
+         do jlat = 1, NLAT
+            coord_lat(jlat) = real(deglat(jlat), kind=4)
+         enddo
+         ret = nf90_put_var(ncid_ocean, vid_lat_oce, coord_lat)
+         call nc_check(ret, 'put_var lat ocean')
+
+         ret = nf90_sync(ncid_ocean)
+         call nc_check(ret, 'sync ocean')
+      end subroutine netcdf_ocean_init
+
+      subroutine netcdf_ocean_write(pheata, pifluxa, pfssta, pdssta, &
+                                    pqhda, pfldoa, picec, psst, pls, pclsst, kstep, ktspd)
+         real,    intent(in) :: pheata(NHOR), pifluxa(NHOR), pfssta(NHOR), pdssta(NHOR)
+         real,    intent(in) :: pqhda(NHOR), pfldoa(NHOR), picec(NHOR), psst(NHOR)
+         real,    intent(in) :: pls(NHOR), pclsst(NHOR)
+         integer, intent(in) :: kstep, ktspd
+         real(kind=8)        :: time_val
+         integer             :: ret
+
+         if (nnetcdf == 0 .or. noutput == 0) return
+
+         ocean_nc_time_step = ocean_nc_time_step + 1
+
+         if (mypid == NROOT) then
+            time_val = kstep / real(ktspd, kind=8)
+            ret = nf90_put_var(ncid_ocean, vid_time_oce, (/ time_val /), &
+                               start=(/ ocean_nc_time_step /), count=(/ 1 /))
+            call nc_check(ret, 'put_var time ocean')
+         endif
+
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_heata,  pheata)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_ifluxa, pifluxa)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_fssta,  pfssta)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_dssta,  pdssta)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_qhda,   pqhda)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_fldoa,  pfldoa)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_icec,   picec)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_sst,    psst)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_ls,     pls)
+         call write_field_2d_file(ncid_ocean, ocean_nc_time_step, vid_oce_clsst,  pclsst)
+
+         if (mypid == NROOT) then
+            ret = nf90_sync(ncid_ocean)
+            call nc_check(ret, 'sync ocean')
+         endif
+      end subroutine netcdf_ocean_write
+
+      subroutine netcdf_ocean_close
+         integer :: ret
+         if (nnetcdf == 0 .or. noutput == 0) return
+         if (mypid == NROOT .and. ncid_ocean >= 0) then
+            ret = nf90_close(ncid_ocean)
+            call nc_check(ret, 'close ocean')
+            ncid_ocean = -1
+         endif
+         ocean_nc_time_step = 0
+      end subroutine netcdf_ocean_close
+
+      ! ==================================================================
+      !  Sea Ice NetCDF Output Subroutines
+      ! ==================================================================
+
+      subroutine inq_ice_var_ids
+         integer :: ret
+         ret = nf90_inq_varid(ncid_ice, 'time',     vid_time_ice)
+         ret = nf90_inq_varid(ncid_ice, 'heata',    vid_ice_heata)
+         ret = nf90_inq_varid(ncid_ice, 'ofluxa',   vid_ice_ofluxa)
+         ret = nf90_inq_varid(ncid_ice, 'tsfluxa',  vid_ice_tsfluxa)
+         ret = nf90_inq_varid(ncid_ice, 'smelta',   vid_ice_smelta)
+         ret = nf90_inq_varid(ncid_ice, 'imelta',   vid_ice_imelta)
+         ret = nf90_inq_varid(ncid_ice, 'cfluxa',   vid_ice_cfluxa)
+         ret = nf90_inq_varid(ncid_ice, 'fluxca',   vid_ice_fluxca)
+         ret = nf90_inq_varid(ncid_ice, 'qmelta',   vid_ice_qmelta)
+         ret = nf90_inq_varid(ncid_ice, 'xflxicea', vid_ice_xflxicea)
+         ret = nf90_inq_varid(ncid_ice, 'icec',     vid_ice_icec)
+         ret = nf90_inq_varid(ncid_ice, 'iced',     vid_ice_iced)
+         ret = nf90_inq_varid(ncid_ice, 'scflxa',   vid_ice_scflxa)
+         ret = nf90_inq_varid(ncid_ice, 'cfluxra',  vid_ice_cfluxra)
+         ret = nf90_inq_varid(ncid_ice, 'cfluxna',  vid_ice_cfluxna)
+         ret = nf90_inq_varid(ncid_ice, 'ts',       vid_ice_ts)
+         ret = nf90_inq_varid(ncid_ice, 'zsnow',    vid_ice_zsnow)
+         ret = nf90_inq_varid(ncid_ice, 'sst',      vid_ice_sst)
+         ret = nf90_inq_varid(ncid_ice, 'ls',       vid_ice_ls)
+         ret = nf90_inq_varid(ncid_ice, 'clicec2',  vid_ice_clicec2)
+         ret = nf90_inq_varid(ncid_ice, 'cliced2',  vid_ice_cliced2)
+         ret = nf90_inq_varid(ncid_ice, 'icecc',    vid_ice_icecc)
+         ret = nf90_inq_varid(ncid_ice, 'cpmea',    vid_ice_cpmea)
+         ret = nf90_inq_varid(ncid_ice, 'croffa',   vid_ice_croffa)
+         ret = nf90_inq_varid(ncid_ice, 'stoia',    vid_ice_stoia)
+      end subroutine inq_ice_var_ids
+
+      subroutine netcdf_ice_init(youtput)
+         character(len=*), intent(in) :: youtput
+         character(len=256)           :: fname, time_units
+         real(kind=4)                 :: coord_lon(NLON), coord_lat(NLAT)
+         integer                      :: jlon, jlat, ret, did_time, existing_len
+
+         if (nnetcdf == 0 .or. noutput == 0) return
+
+         ice_nc_time_step = 0
+
+         if (mypid /= NROOT) return
+
+         fname = trim(youtput)
+         if (len_trim(fname) == 0) fname = 'ice_output'
+         if (index(fname, '.nc') == 0) then
+            fname = trim(fname) // '.nc'
+         endif
+
+         if (nrestart > 0) then
+            ret = nf90_open(trim(fname), NF90_WRITE, ncid_ice)
+            if (ret == NF90_NOERR) then
+               ret = nf90_inq_dimid(ncid_ice, 'time', did_time)
+               call nc_check(ret, 'inq_dimid time ice')
+               ret = nf90_inquire_dimension(ncid_ice, did_time, len=existing_len)
+               call nc_check(ret, 'inquire_dim time ice')
+               ice_nc_time_step = existing_len
+               call inq_ice_var_ids
+               return
+            endif
+         endif
+
+         ret = nf90_create(trim(fname), IOR(NF90_CLOBBER, NF90_NETCDF4), ncid_ice)
+         call nc_check(ret, 'create ' // trim(fname))
+
+         ret = nf90_put_att(ncid_ice, NF90_GLOBAL, 'title', 'PlaSim-LSG TNG Sea Ice NetCDF Output')
+         ret = nf90_put_att(ncid_ice, NF90_GLOBAL, 'Conventions', 'CF-1.6')
+         ret = nf90_put_att(ncid_ice, NF90_GLOBAL, 'source', 'PlaSim-LSG TNG')
+
+         ret = nf90_def_dim(ncid_ice, 'lon', NLON, dim_lon_ice)
+         call nc_check(ret, 'def_dim lon ice')
+         ret = nf90_def_dim(ncid_ice, 'lat', NLAT, dim_lat_ice)
+         call nc_check(ret, 'def_dim lat ice')
+         ret = nf90_def_dim(ncid_ice, 'time', NF90_UNLIMITED, dim_time_ice)
+         call nc_check(ret, 'def_dim time ice')
+
+         ret = nf90_def_var(ncid_ice, 'lon', NF90_FLOAT, (/ dim_lon_ice /), vid_lon_ice)
+         call nc_check(ret, 'def_var lon ice')
+         ret = nf90_put_att(ncid_ice, vid_lon_ice, 'standard_name', 'longitude')
+         ret = nf90_put_att(ncid_ice, vid_lon_ice, 'long_name', 'longitude')
+         ret = nf90_put_att(ncid_ice, vid_lon_ice, 'units', 'degrees_east')
+         ret = nf90_put_att(ncid_ice, vid_lon_ice, 'axis', 'X')
+
+         ret = nf90_def_var(ncid_ice, 'lat', NF90_FLOAT, (/ dim_lat_ice /), vid_lat_ice)
+         call nc_check(ret, 'def_var lat ice')
+         ret = nf90_put_att(ncid_ice, vid_lat_ice, 'standard_name', 'latitude')
+         ret = nf90_put_att(ncid_ice, vid_lat_ice, 'long_name', 'latitude')
+         ret = nf90_put_att(ncid_ice, vid_lat_ice, 'units', 'degrees_north')
+         ret = nf90_put_att(ncid_ice, vid_lat_ice, 'axis', 'Y')
+
+         ret = nf90_def_var(ncid_ice, 'time', NF90_DOUBLE, (/ dim_time_ice /), vid_time_ice)
+         call nc_check(ret, 'def_var time ice')
+         ret = nf90_put_att(ncid_ice, vid_time_ice, 'standard_name', 'time')
+         ret = nf90_put_att(ncid_ice, vid_time_ice, 'long_name', 'time')
+         write(time_units, '("days since ",I4.4,"-",I2.2,"-01 00:00:00")') n_start_year, n_start_month
+         ret = nf90_put_att(ncid_ice, vid_time_ice, 'units', trim(time_units))
+         if (n_days_per_year == 360) then
+            ret = nf90_put_att(ncid_ice, vid_time_ice, 'calendar', '360_day')
+         else if (n_days_per_year == 365) then
+            ret = nf90_put_att(ncid_ice, vid_time_ice, 'calendar', '365_day')
+         else
+            ret = nf90_put_att(ncid_ice, vid_time_ice, 'calendar', 'proleptic_gregorian')
+         endif
+         ret = nf90_put_att(ncid_ice, vid_time_ice, 'axis', 'T')
+
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'heata', 'Flux from the atmosphere', 'W/m2', 701, vid_ice_heata)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'ofluxa', 'Flux from the ocean', 'W/m2', 702, vid_ice_ofluxa)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'tsfluxa', 'Flux to warm/cool ice/snow', 'W/m2', 703, vid_ice_tsfluxa)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'smelta', 'Flux for snow melt', 'W/m2', 704, vid_ice_smelta)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'imelta', 'Flux used for ice melt', 'W/m2', 705, vid_ice_imelta)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'cfluxa', 'Flux to the ocean', 'W/m2', 706, vid_ice_cfluxa)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'fluxca', 'Cond. heatflux', 'W/m2', 707, vid_ice_fluxca)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'qmelta', 'Res flux to ice', 'W/m2', 708, vid_ice_qmelta)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'xflxicea', 'Flux correction', 'W/m2', 709, vid_ice_xflxicea)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'icec', 'Ice cover', 'fraction', 710, vid_ice_icec)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'iced', 'Ice thickness', 'm', 711, vid_ice_iced)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'scflxa', 'Flux from snow -> ice conversion', 'W/m2', 712, vid_ice_scflxa)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'cfluxra', 'Flux for limiting ice to xmaxd', 'W/m2', 713, vid_ice_cfluxra)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'cfluxna', 'Flux due to neg. ice', 'W/m2', 714, vid_ice_cfluxna)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'ts', 'Surface temperature', 'K', 739, vid_ice_ts)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'zsnow', 'Snow depth', 'm', 741, vid_ice_zsnow)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'sst', 'Sea surface temperature', 'K', 769, vid_ice_sst)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'ls', 'Land sea mask', 'fraction', 772, vid_ice_ls)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'clicec2', 'Climatological ice cover', 'fraction', 790, vid_ice_clicec2)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'cliced2', 'Climatological ice thickness', 'm', 791, vid_ice_cliced2)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'icecc', 'Ice cover computed prognostically', 'fraction', 792, vid_ice_icecc)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'cpmea', 'Fresh water (p-e) for LSG', 'm/s', 794, vid_ice_cpmea)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'croffa', 'Runoff for LSG', 'm/s', 795, vid_ice_croffa)
+         call def_var_2d_file(ncid_ice, dim_lon_ice, dim_lat_ice, dim_time_ice, &
+                              'stoia', 'Snow converted to ice', 'm', 796, vid_ice_stoia)
+
+         ret = nf90_enddef(ncid_ice)
+         call nc_check(ret, 'enddef ice')
+
+         do jlon = 1, NLON
+            coord_lon(jlon) = real((jlon - 1) * 360.0 / NLON, kind=4)
+         enddo
+         ret = nf90_put_var(ncid_ice, vid_lon_ice, coord_lon)
+         call nc_check(ret, 'put_var lon ice')
+
+         do jlat = 1, NLAT
+            coord_lat(jlat) = real(deglat(jlat), kind=4)
+         enddo
+         ret = nf90_put_var(ncid_ice, vid_lat_ice, coord_lat)
+         call nc_check(ret, 'put_var lat ice')
+
+         ret = nf90_sync(ncid_ice)
+         call nc_check(ret, 'sync ice')
+      end subroutine netcdf_ice_init
+
+      subroutine netcdf_ice_write(pxheata, pxofluxa, pxtsfluxa, pxsmelta, pximelta, &
+                                  pxcfluxa, pxfluxca, pxqmelta, pxflxicea, pxicec,  &
+                                  pxiced, pxscflxa, pxcfluxra, pxcfluxna, pxts,     &
+                                  pzsnow, pxsst, pxls, pxclicec2, pxcliced2,        &
+                                  pxicecc, pxcpmea, pxcroffa, pxstoia, kstep, ktspd)
+         real,    intent(in) :: pxheata(NHOR), pxofluxa(NHOR), pxtsfluxa(NHOR)
+         real,    intent(in) :: pxsmelta(NHOR), pximelta(NHOR), pxcfluxa(NHOR)
+         real,    intent(in) :: pxfluxca(NHOR), pxqmelta(NHOR), pxflxicea(NHOR)
+         real,    intent(in) :: pxicec(NHOR), pxiced(NHOR), pxscflxa(NHOR)
+         real,    intent(in) :: pxcfluxra(NHOR), pxcfluxna(NHOR), pxts(NHOR)
+         real,    intent(in) :: pzsnow(NHOR), pxsst(NHOR), pxls(NHOR)
+         real,    intent(in) :: pxclicec2(NHOR), pxcliced2(NHOR), pxicecc(NHOR)
+         real,    intent(in) :: pxcpmea(NHOR), pxcroffa(NHOR), pxstoia(NHOR)
+         integer, intent(in) :: kstep, ktspd
+         real(kind=8)        :: time_val
+         integer             :: ret
+
+         if (nnetcdf == 0 .or. noutput == 0) return
+
+         ice_nc_time_step = ice_nc_time_step + 1
+
+         if (mypid == NROOT) then
+            time_val = kstep / real(ktspd, kind=8)
+            ret = nf90_put_var(ncid_ice, vid_time_ice, (/ time_val /), &
+                               start=(/ ice_nc_time_step /), count=(/ 1 /))
+            call nc_check(ret, 'put_var time ice')
+         endif
+
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_heata,    pxheata)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_ofluxa,   pxofluxa)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_tsfluxa,  pxtsfluxa)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_smelta,   pxsmelta)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_imelta,   pximelta)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_cfluxa,   pxcfluxa)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_fluxca,   pxfluxca)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_qmelta,   pxqmelta)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_xflxicea, pxflxicea)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_icec,     pxicec)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_iced,     pxiced)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_scflxa,   pxscflxa)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_cfluxra,  pxcfluxra)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_cfluxna,  pxcfluxna)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_ts,       pxts)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_zsnow,    pzsnow)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_sst,      pxsst)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_ls,       pxls)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_clicec2,  pxclicec2)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_cliced2,  pxcliced2)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_icecc,    pxicecc)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_cpmea,    pxcpmea)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_croffa,   pxcroffa)
+         call write_field_2d_file(ncid_ice, ice_nc_time_step, vid_ice_stoia,    pxstoia)
+
+         if (mypid == NROOT) then
+            ret = nf90_sync(ncid_ice)
+            call nc_check(ret, 'sync ice')
+         endif
+      end subroutine netcdf_ice_write
+
+      subroutine netcdf_ice_close
+         integer :: ret
+         if (nnetcdf == 0 .or. noutput == 0) return
+         if (mypid == NROOT .and. ncid_ice >= 0) then
+            ret = nf90_close(ncid_ice)
+            call nc_check(ret, 'close ice')
+            ncid_ice = -1
+         endif
+         ice_nc_time_step = 0
+      end subroutine netcdf_ice_close
 
       end module netcdfmod

@@ -922,6 +922,10 @@ class NetcdfOutputTests(unittest.TestCase):
         nc_file = run / "plasim_output.nc"
         self.assertTrue(nc_file.is_file(), "plasim_output.nc was not created")
         self.assertFalse((run / "plasim_output").exists(), "plasim_output service file should not exist when nnetcdf=1")
+        self.assertTrue((run / "ocean_output.nc").is_file(), "ocean_output.nc was not created")
+        self.assertFalse((run / "ocean_output").exists(), "ocean_output service file should not exist when nnetcdf=1")
+        self.assertTrue((run / "ice_output.nc").is_file(), "ice_output.nc was not created")
+        self.assertFalse((run / "ice_output").exists(), "ice_output service file should not exist when nnetcdf=1")
 
         if shutil.which("cdo"):
             ntime = subprocess.check_output(["cdo", "-s", "ntime", str(nc_file)], text=True).strip()
@@ -933,6 +937,10 @@ class NetcdfOutputTests(unittest.TestCase):
             self.assertIn("float ts(time, lat, lon)", dump)
             self.assertIn("float ua(time, lev, lat, lon)", dump)
             self.assertIn("float va(time, lev, lat, lon)", dump)
+            dump_oce = subprocess.check_output(["ncdump", "-h", str(run / "ocean_output.nc")], text=True)
+            self.assertIn("float sst(time, lat, lon)", dump_oce)
+            dump_ice = subprocess.check_output(["ncdump", "-h", str(run / "ice_output.nc")], text=True)
+            self.assertIn("float icec(time, lat, lon)", dump_ice)
 
     def test_monthly_netcdf_output(self) -> None:
         """Verify direct monthly NetCDF-4 output generation with nnetcdf=1 and noutput_avg=2."""
@@ -996,6 +1004,10 @@ class NetcdfOutputTests(unittest.TestCase):
         command([str(self.exe_stub)], cwd=run)
         self.assertTrue((run / "plasim_output").is_file(), "plasim_output service file was not created")
         self.assertFalse((run / "plasim_output.nc").exists(), "plasim_output.nc should not exist when nnetcdf=0")
+        self.assertTrue((run / "ocean_output").is_file(), "ocean_output service file was not created")
+        self.assertFalse((run / "ocean_output.nc").exists(), "ocean_output.nc should not exist when nnetcdf=0")
+        self.assertTrue((run / "ice_output").is_file(), "ice_output service file was not created")
+        self.assertFalse((run / "ice_output.nc").exists(), "ice_output.nc should not exist when nnetcdf=0")
 
 
 if __name__ == "__main__":

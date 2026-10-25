@@ -65,8 +65,8 @@ fluxmod.o:	fluxmod.f90 plasimmod.o
 radmod.o:	radmod.f90 plasimmod.o specblock.o
 surfmod.o:	surfmod.f90 plasimmod.o
 seamod.o:	seamod.f90 plasimmod.o
-icemod.o:	icemod.f90 plasimmod.o
-oceanmod.o:	oceanmod.f90 plasimmod.o
+icemod.o:	icemod.f90 plasimmod.o ${NETCDFMOD}.o
+oceanmod.o:	oceanmod.f90 plasimmod.o ${NETCDFMOD}.o
 restartmod.o:	restartmod.f90
 specblock.o:    specblock.f90
 tracermod.o:	tracermod.f90 plasimmod.o

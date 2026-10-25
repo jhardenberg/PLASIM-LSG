@@ -10,8 +10,9 @@ fields.
 
 | Product | Representation | Reader/use |
 | --- | --- | --- |
-| `plasim_output.nc` | Direct NetCDF-4 output (`nnetcdf > 0`) | Standard NetCDF tools (CDO, Python netCDF4/xarray, Panoply). |
+| `plasim_output.nc`, `ocean_output.nc`, `ice_output.nc` | Direct NetCDF-4 output (`nnetcdf > 0`) | Standard NetCDF tools (CDO, Python netCDF4/xarray, Panoply). |
 | `plasim_output`, `ice_output`, `ocean_output`, `lsg_output` | Binary Service-style output records (`nnetcdf = 0`) | Selected postprocessor; not a text editor. |
+| `lsg_output` | Converted to NetCDF via `srv2nc` | Postprocessed LSG ocean output stream. |
 | `Nnnn_surf_cccc.sra` | Formatted surface-data headers/arrays | Boundary-data loader; see {doc}`../user/boundary-data`. |
 | `plasim_status` / `plasim_restart` | Named binary restart records | Compatible model restart loader; not a Service converter. |
 
@@ -22,10 +23,14 @@ does not describe these current `writegp`/`writesp` implementations.
 
 ## Direct NetCDF-4 output
 
-When configured with `nnetcdf = 1` in `plasim_namelist`, PlaSim writes directly
-to a compressed NetCDF-4 file (`plasim_output.nc`) instead of binary Service format.
-The file contains coordinate variables `lon`, `lat`, `lev`, and unlimited `time`,
-with 50 primary physical 3D and 2D variables.
+When configured with `nnetcdf = 1` in `plasim_namelist`, PlaSim, the mixed-layer ocean
+(`oceanmod`), and sea ice (`icemod`) write directly to compressed NetCDF-4 files
+(`plasim_output.nc`, `ocean_output.nc`, and `ice_output.nc`) instead of binary Service format.
+The atmospheric file contains coordinate variables `lon`, `lat`, `lev`, and unlimited `time`,
+with 50 primary physical 3D and 2D variables. `ocean_output.nc` and `ice_output.nc` provide
+their corresponding diagnostic 2D fields directly on the Gaussian grid. For coupled simulations
+with the LSG ocean, `lsgmod` continues writing Service format (`lsg_output`), which the run
+script converts automatically via `srv2nc`.
 
 - **Compression**: NetCDF-4 deflation (zlib) is enabled on all variables with level
   controlled by `ndeflate` (default `4`, range `0`–`9`). Chunking is structured per
