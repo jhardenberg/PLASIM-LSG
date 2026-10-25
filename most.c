@@ -1825,12 +1825,9 @@ int WriteRunScript(int model)
     } else {
       fprintf(fp,"YEAR2=%d\n",SimYears);
     }
-   if (!nnetcdf)
-   {
-      fputs("average=\"-m\"  # Comment this line if you do not want monthly averaging\n", fp);
-      getcwd(cwd, sizeof(cwd));
-      fprintf(fp,"srv2nc=%s/scripts/srv2nc\n", cwd);
-   }
+   fputs("average=\"-m\"  # Comment this line if you do not want monthly averaging\n", fp);
+   getcwd(cwd, sizeof(cwd));
+   fprintf(fp,"srv2nc=%s/scripts/srv2nc\n", cwd);
    fputs("[ $# == 1 ] && cd $1\n",fp);
    fprintf(fp,"rm -f %s_restart\n",ShortModelName[model]);
    fputs("rm -f Abort_Message\n",fp);
@@ -1867,59 +1864,45 @@ int WriteRunScript(int model)
       fputs("   INST=0\n",fp);
       fputs("   while [ $INST -lt $INSTANCES ]\n   do\n",fp);
       fputs("      EXT=`printf '%02d' $INST`\n",fp);
-      if (nnetcdf)
-      {
-         fprintf(fp,"      if [ -e %s_$EXT.nc ]; then\n",outp_name);
-         fprintf(fp,"         mv %s_$EXT.nc output/${EXT}_$DATANAME\n",outp_name);
-         fprintf(fp,"      fi\n");
-         fprintf(fp,"      if [ -e %s_$EXT ]; then mv %s_$EXT output/${EXT}_$DIAGNAME; fi\n",
-                 diag_name,diag_name);
-         fprintf(fp,"      if [ -e %s_status_$EXT ]; then\n",
-                 ShortModelName[model]);
-         fprintf(fp,"         cp %s_status_$EXT %s_restart_$EXT\n",
-                 ShortModelName[model],ShortModelName[model]);
-         fprintf(fp,"         mv %s_status_$EXT restart/${EXT}_$RESTNAME\n",ShortModelName[model]);
-         fputs("      fi\n",fp);
-      }
-      else
-      {
-         fprintf(fp,"      if [ -e %s_$EXT.nc ]; then\n",outp_name);
-         fprintf(fp,"         mv %s_$EXT.nc ${EXT}_$DATANAME\n",outp_name);
-         fprintf(fp,"      elif [ -e %s_$EXT ]; then\n",outp_name);
-         fprintf(fp,"         mv %s_$EXT ${EXT}_$DATANAME\n",outp_name);
-         fprintf(fp,"      fi\n");
-         fprintf(fp,"      if [ -e %s_$EXT ]; then mv %s_$EXT ${EXT}_$DIAGNAME; fi\n",
-                 diag_name,diag_name);
-         fprintf(fp,"      if [ -e %s_status_$EXT ]; then\n",
-                 ShortModelName[model]);
-         fprintf(fp,"         cp %s_status_$EXT %s_restart_$EXT\n",
-                 ShortModelName[model],ShortModelName[model]);
-         fprintf(fp,"         mv %s_status_$EXT ${EXT}_$RESTNAME\n",ShortModelName[model]);
-         fputs("      fi\n",fp);
-      }
+      fprintf(fp,"      if [ -e %s_$EXT.nc ]; then\n",outp_name);
+      fprintf(fp,"         mv %s_$EXT.nc output/${EXT}_$DATANAME\n",outp_name);
+      fprintf(fp,"      elif [ -e %s_$EXT ]; then\n",outp_name);
+      fprintf(fp,"         mv %s_$EXT output/${EXT}_$DATANAME\n",outp_name);
+      fprintf(fp,"      fi\n");
+      fprintf(fp,"      if [ -e %s_$EXT ]; then mv %s_$EXT output/${EXT}_$DIAGNAME; fi\n",
+              diag_name,diag_name);
+      fprintf(fp,"      if [ -e %s_status_$EXT ]; then\n",
+              ShortModelName[model]);
+      fprintf(fp,"         cp %s_status_$EXT %s_restart_$EXT\n",
+              ShortModelName[model],ShortModelName[model]);
+      fprintf(fp,"         mv %s_status_$EXT restart/${EXT}_$RESTNAME\n",ShortModelName[model]);
+      fputs("      fi\n",fp);
       fputs("      INST=`expr $INST + 1`\n",fp);
       fputs("   done\n",fp);
    }
    else
    {
       fprintf(fp,"   if [ -e %s ]; then mv %s output/$DIAGNAME; fi\n",diag_name,diag_name);
-      if (nnetcdf)
-      {
-         fprintf(fp,"   if [ -e %s.nc ]; then\n",outp_name);
-         fprintf(fp,"      mv %s.nc output/$DATANAME\n",outp_name);
-         fprintf(fp,"   fi\n");
-      }
-      else
-      {
-         fprintf(fp,"   if [ -e %s.nc ]; then\n",outp_name);
-         fprintf(fp,"      mv %s.nc output/$DATANAME\n",outp_name);
-         fprintf(fp,"   elif [ -e %s ]; then\n",outp_name);
-         fprintf(fp,"      $srv2nc $average %s output/$DATANAME\n",outp_name);
-         fprintf(fp,"   fi\n");
-         fprintf(fp,"   if [ -e ocean_output ]; then $srv2nc $average ocean_output output/$OCENAME; fi\n");
-         fprintf(fp,"   if [ -e ice_output ]; then $srv2nc $average ice_output output/$ICENAME; fi\n");
-         fprintf(fp,"   if [ -e lsg_output ]; then $srv2nc lsg_output output/$LSGNAME; fi\n");
-      }
+      fprintf(fp,"   if [ -e %s.nc ]; then\n",outp_name);
+      fprintf(fp,"      mv %s.nc output/$DATANAME\n",outp_name);
+      fprintf(fp,"   elif [ -e %s ]; then\n",outp_name);
+      fprintf(fp,"      $srv2nc $average %s output/$DATANAME\n",outp_name);
+      fprintf(fp,"   fi\n");
+      fprintf(fp,"   if [ -e ocean_output.nc ]; then\n");
+      fprintf(fp,"      mv ocean_output.nc output/$OCENAME\n");
+      fprintf(fp,"   elif [ -e ocean_output ]; then\n");
+      fprintf(fp,"      $srv2nc $average ocean_output output/$OCENAME\n");
+      fprintf(fp,"   fi\n");
+      fprintf(fp,"   if [ -e ice_output.nc ]; then\n");
+      fprintf(fp,"      mv ice_output.nc output/$ICENAME\n");
+      fprintf(fp,"   elif [ -e ice_output ]; then\n");
+      fprintf(fp,"      $srv2nc $average ice_output output/$ICENAME\n");
+      fprintf(fp,"   fi\n");
+      fprintf(fp,"   if [ -e lsg_output.nc ]; then\n");
+      fprintf(fp,"      mv lsg_output.nc output/$LSGNAME\n");
+      fprintf(fp,"   elif [ -e lsg_output ]; then\n");
+      fprintf(fp,"      $srv2nc lsg_output output/$LSGNAME\n");
+      fprintf(fp,"   fi\n");
       fprintf(fp,"   if [ -e %s_status ]; then\n",ShortModelName[model]);
       fprintf(fp,"      cp %s_status %s_restart\n",
               ShortModelName[model],ShortModelName[model]);

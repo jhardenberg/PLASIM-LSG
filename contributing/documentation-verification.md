@@ -248,7 +248,7 @@ or documenting intended behavior as if it were current.
 - Checked `most.c`:
   - Added `NetCDF Output` checkbox linked to `nnetcdf` (default 0), displayed for PlaSim and hidden for other models.
   - Updated defaults: `Write Output` (`noutput`) defaults to 1, and `Run with GUI` (`ngui`) defaults to 0.
-  - Updated `WriteRunScript`: when `nnetcdf` is selected, omits `average="-m"` and `srv2nc=...`, moving `plasim_output.nc` directly to `output/$DATANAME` and diagnostic files to `output/$DIAGNAME`.
+  - Updated `WriteRunScript`: generates a unified driver script that defines `average="-m"` and `srv2nc=...` and checks on the fly (`if [ -e <file>.nc ]; then mv ...; elif [ -e <file> ]; then $srv2nc ...; fi`) across `plasim_output`, `ocean_output`, `ice_output`, and `lsg_output`.
   - Updated `Build()`: passes `NETCDFMOD=netcdfmod` when `nnetcdf=1` and `NETCDFMOD=netcdfmod_stub` when `nnetcdf=0`, maintaining rebuild marker `NETCDF`.
   - Updated `WriteNamelistFile`: writes `NNETCDF` to `plasim_namelist`.
   - Verified with `MostInputTests.test_defaults_and_netcdf_selection` in `tests/test_defensive.py` and `MostRunScriptTests` in `tests/test_scripts.py`.

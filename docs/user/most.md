@@ -177,10 +177,26 @@ for ((YEAR=$YEAR1; YEAR<=$YEAR2; YEAR++)); do
    ./most_plasim_t21_l10_p1.x
    if [ -e Abort_Message ]; then exit 1; fi
    if [ -e plasim_diag ]; then mv plasim_diag output/$DIAGNAME; fi
-   if [ -e plasim_output ]; then $srv2nc $average plasim_output output/$DATANAME; fi
-   if [ -e ocean_output ]; then $srv2nc $average ocean_output output/$OCENAME; fi
-   if [ -e ice_output ]; then $srv2nc $average ice_output output/$ICENAME; fi
-   if [ -e lsg_output ]; then $srv2nc lsg_output output/$LSGNAME; fi
+   if [ -e plasim_output.nc ]; then
+      mv plasim_output.nc output/$DATANAME
+   elif [ -e plasim_output ]; then
+      $srv2nc $average plasim_output output/$DATANAME
+   fi
+   if [ -e ocean_output.nc ]; then
+      mv ocean_output.nc output/$OCENAME
+   elif [ -e ocean_output ]; then
+      $srv2nc $average ocean_output output/$OCENAME
+   fi
+   if [ -e ice_output.nc ]; then
+      mv ice_output.nc output/$ICENAME
+   elif [ -e ice_output ]; then
+      $srv2nc $average ice_output output/$ICENAME
+   fi
+   if [ -e lsg_output.nc ]; then
+      mv lsg_output.nc output/$LSGNAME
+   elif [ -e lsg_output ]; then
+      $srv2nc lsg_output output/$LSGNAME
+   fi
    if [ -e plasim_status ]; then
       cp plasim_status plasim_restart
       mv plasim_status restart/$RESTNAME
@@ -210,10 +226,11 @@ done
   to another machine.
 
 ```{note}
-**Direct NetCDF output mode:** When **NetCDF Output** is selected in MoSt (`NNETCDF=1`),
-PlaSim directly outputs deflated NetCDF-4 (`plasim_output.nc`). The generated
-`most_plasim_run` script omits `average="-m"` and `srv2nc=...`, moving `plasim_output.nc`
-directly to `output/$DATANAME` and `plasim_diag` to `output/$DIAGNAME` without requiring CDO.
+**On-the-fly NetCDF and Service output handling:** The generated `most_plasim_run`
+script checks on the fly for each model component whether `.nc` files are present
+(`plasim_output.nc`, `ocean_output.nc`, `ice_output.nc`, `lsg_output.nc`). If direct
+NetCDF files exist, the script moves them directly to `output/`; if raw Service-format
+files exist, it converts them using `srv2nc`.
 ```
 
 ### What happens during each loop iteration
