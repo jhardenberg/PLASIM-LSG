@@ -10,7 +10,9 @@ fields.
 
 | Product | Representation | Reader/use |
 | --- | --- | --- |
-| `plasim_output`, `ice_output`, `ocean_output`, `lsg_output` | Binary Service-style output records | Selected postprocessor; not a text editor. |
+| `plasim_output.nc`, `ocean_output.nc`, `ice_output.nc` | Direct NetCDF-4 output (`nnetcdf > 0`) | Standard NetCDF tools (CDO, Python netCDF4/xarray, Panoply). |
+| `plasim_output`, `ice_output`, `ocean_output`, `lsg_output` | Binary Service-style output records (`nnetcdf = 0`) | Selected postprocessor; not a text editor. |
+| `lsg_output` | Converted to NetCDF via `srv2nc` | Postprocessed LSG ocean output stream. |
 | `Nnnn_surf_cccc.sra` | Formatted surface-data headers/arrays | Boundary-data loader; see {doc}`../user/boundary-data`. |
 | `plasim_status` / `plasim_restart` | Named binary restart records | Compatible model restart loader; not a Service converter. |
 
@@ -18,6 +20,32 @@ The raw atmospheric output currently writes **32-bit** real data and
 32-bit integer headers, even when the model uses double-precision internal
 arithmetic. The old guide's general statement about packed 16-bit output
 does not describe these current `writegp`/`writesp` implementations.
+
+## Direct NetCDF-4 output
+
+When configured with `nnetcdf = 1` in `plasim_namelist`, PlaSim, the mixed-layer ocean
+(`oceanmod`), and sea ice (`icemod`) write directly to compressed NetCDF-4 files
+(`plasim_output.nc`, `ocean_output.nc`, and `ice_output.nc`) instead of binary Service format.
+The atmospheric file contains coordinate variables `lon`, `lat`, `lev`, and unlimited `time`,
+with 50 primary physical 3D and 2D variables. `ocean_output.nc` and `ice_output.nc` provide
+their corresponding diagnostic 2D fields directly on the Gaussian grid. For coupled simulations
+with the LSG ocean, `lsgmod` continues writing Service format (`lsg_output`), which the run
+script converts automatically via `srv2nc`.
+
+- **Compression**: NetCDF-4 deflation (zlib) is enabled on all variables with level
+  controlled by `ndeflate` (default `4`, range `0`–`9`). Chunking is structured per
+  horizontal Gaussian slab (`NLON` × `NLAT`).
+- **Averaging & cadence**: Controlled by `noutput_avg`:
+  - `noutput_avg = 2` (default): Calendar monthly averages across all model timesteps in the month.
+    In this mode, `nwpd` is ignored.
+  - `noutput_avg = 1`: True 24-hour daily averages across all model timesteps
+    in each day (`ntspd` steps), integrating the diurnal cycle without midnight sampling
+    bias. In this mode, `nwpd` is ignored.
+  - `noutput_avg = 0`: Instantaneous snapshots written at the interval governed by `nwpd`
+    (`ntspd / nwpd` steps, e.g. 6-hourly with `nwpd = 4`).
+- **Spectral synthesis**: Spectral variables (temperature, divergence, vorticity, orography)
+  are synthesized to the Gaussian grid on hybrid levels, and horizontal winds `ua` and `va`
+  are derived from vorticity and divergence.
 
 ## Atmospheric Service records
 

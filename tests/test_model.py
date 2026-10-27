@@ -10,6 +10,7 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -74,9 +75,13 @@ def doubles(data: bytes) -> tuple[float, ...]:
 
 def build_model(
     build: Path, *, lsg: bool = False, ranks: int = 1, precision: str = "-fdefault-real-8",
-    latitudes: int = 32, fflags: str = "-O0",
+    latitudes: int = 32, fflags: str = "-O0", rainmod: str = "rainmod", fftmod: str = "fftmod",
+    jobs: int | None = None,
+    netcdfmod: str | None = None,
 ) -> Path:
     """Build L10 at the selected latitude count with optional MPI and real LSG."""
+    if netcdfmod is None:
+        netcdfmod = "netcdfmod" if shutil.which("nf-config") is not None else "netcdfmod_stub"
     compiler = "mpif90" if ranks > 1 else "gfortran"
     for program in (compiler, "make", "cc"):
         if shutil.which(program) is None:
@@ -104,9 +109,24 @@ def build_model(
         "GUIMOD": "guimod_stub", "PUMAX": "pumax_stub",
         "GUILIB": "", "OCEAN": "lsgmod" if lsg else "lsgmod_stub",
         "OCEANCOUP": "cpl" if lsg else "cpl_stub",
+        "RAINMOD": rainmod,
         "FFTMOD": fftmod,
+        "NETCDFMOD": netcdfmod,
     })
-    command(["make", "-e", "-j1", "plasim.x"], cwd=build, env=env)
+    if "SDKROOT" not in env and sys.platform == "darwin":
+        try:
+            sdk = subprocess.check_output(["xcrun", "--show-sdk-path"], text=True).strip()
+            if sdk:
+                env["SDKROOT"] = sdk
+        except Exception:
+            pass
+    if jobs is None:
+        jobs_env = os.environ.get("PLASIM_BUILD_JOBS")
+        if jobs_env and jobs_env.isdigit():
+            jobs = max(1, int(jobs_env))
+        else:
+            jobs = max(1, min(4, os.cpu_count() or 1))
+    command(["make", "-e", f"-j{jobs}", "plasim.x"], cwd=build, env=env)
     return build / "plasim.x"
 
 
@@ -504,6 +524,39 @@ class PlaSimTests(unittest.TestCase):
             yclsst_vals = doubles(state["yclsst"])
             self.assertTrue(all(abs(v - 288.0) < 1.0 for v in yclsst_vals), f"yclsst not initialized to tgr: {yclsst_vals[:5]}")
 
+    def test_unified_convection_schemes(self) -> None:
+        """Verify unified convection schemes run 1 day and produce finite states."""
+        for scheme_id, scheme_name in (
+            (0, "kuo_default"),
+            (1, "betts_miller"),
+            (2, "mca"),
+            (3, "kuo_old"),
+        ):
+            with self.subTest(scheme=scheme_name, nconvection=scheme_id):
+                run = self.prepare_run(f"convection-{scheme_name}", days=1)
+                (run / "rainmod_namelist").write_text(
+                    f"&rainmod_nl\n nconvection={scheme_id}\n/\n",
+                    encoding="ascii",
+                )
+                self.run_model(run)
+                status = records(run / "plasim_status")
+                for field in ("dt", "dq", "dalb", "dls", "sz", "sd", "st", "sq", "sp"):
+                    values = doubles(status[field])
+                    self.assertTrue(all(map(math.isfinite, values)), f"Non-finite in {field} for {scheme_name}")
+                diag = (run / "plasim_diag").read_text()
+                self.assertIn("Namelist RAINMOD_NL", diag)
+
+    def test_legacy_kbetta_alias(self) -> None:
+        """Verify legacy KBETTA namelist parameter aliases to kbeta."""
+        run = self.prepare_run("legacy-kbetta", days=0, steps=1)
+        (run / "rainmod_namelist").write_text(
+            "&rainmod_nl\n kbetta=0\n/\n",
+            encoding="ascii",
+        )
+        self.run_model(run)
+        diag = (run / "plasim_diag").read_text()
+        self.assertIn("KBETA=0", diag.upper().replace(" ", ""))
+
 
 class CalendarTests(unittest.TestCase):
     @classmethod
@@ -779,6 +832,229 @@ class ConfigurePrecisionTests(unittest.TestCase):
         prec_file = work / "most_precision_options"
         self.assertTrue(prec_file.is_file(), f"most_precision_options was not created for nagfor:\n{result.stdout}")
         self.assertIn("MOST_PREC=-r8", prec_file.read_text())
+
+
+class AlternativeComponentTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp = tempfile.TemporaryDirectory(prefix="plasim-components-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.work = Path(cls.temp.name)
+
+    def test_fft991mod_build_and_run(self) -> None:
+        """Verify fft991mod compiles, runs, and integrates one day."""
+        executable = build_model(self.work / "build-fft991", fftmod="fft991mod")
+        run = prepare_run(self.work, "run-fft991", days=1)
+        run_model(executable, run)
+        state = records(run / "plasim_status")
+        vals = doubles(state["dt"])
+        self.assertTrue(all(map(math.isfinite, vals)))
+        self.assertIn("one day", (run / "plasim_diag").read_text())
+
+    def test_tracer_transport_activation(self) -> None:
+        """Verify semi-Lagrangian tracer transport activates when nsela=1."""
+        executable = build_model(self.work / "build-tracer")
+        run = prepare_run(self.work, "run-tracer", days=1)
+        (run / "plasim_namelist").write_text(
+            "&plasim_nl\n n_run_years=0, n_run_months=0, n_run_days=1, n_run_steps=0, "
+            "kick=0, ngui=0, seed=1, nsela=1\n/\n", encoding="ascii"
+        )
+        run_model(executable, run)
+        diag = (run / "plasim_diag").read_text()
+        self.assertIn("one day", diag)
+        state = records(run / "plasim_status")
+        vals = doubles(state["dt"])
+        self.assertTrue(all(map(math.isfinite, vals)))
+
+    def test_stub_interfaces_and_mpabort(self) -> None:
+        """Verify replacement stubs (cpl_stub, lsgmod_stub, mpimod_stub mpabort) signatures and diagnostics."""
+        work = self.work / "test_stubs"
+        work.mkdir()
+        test_src = work / "test_stubs.f90"
+        test_src.write_text("""
+          subroutine get_restart_array(a,b,c,d,e)
+          end subroutine
+          subroutine put_restart_array(a,b,c,d,e)
+          end subroutine
+          subroutine get_surf_array(a,b,c,d,e)
+          end subroutine
+
+          program test_stubs
+          use pumamod, only: nud
+          implicit none
+          integer :: ndatim(7) = 0
+          real :: zls(64,32) = 0.0
+          real :: zsst(2048) = 0.0
+          real :: ztaux(2048) = 0.0
+          real :: ztauy(2048) = 0.0
+          real :: zpme(2048) = 0.0
+          real :: zroff(2048) = 0.0
+          real :: zice(2048) = 0.0
+          real :: zheat(2048) = 0.0
+          real :: zfldo(2048) = 0.0
+
+          ! Test cpl_stub entry points with full oceanmod signatures
+          call clsgini(ndatim,32,320,1,0,zls,64,32)
+          call clsgstep(ndatim,1,zsst,ztaux,ztauy,zpme,zroff,zice,zheat,zfldo)
+          call clsgstop
+
+          ! Test lsgmod_stub entry points with cpl caller signatures
+          call lsgini(320,1,64,32)
+          call lsgstep
+          call lsgstop
+          call lsg
+
+          ! Test mpabort writing to nud
+          open(11, file="test_diag.txt")
+          nud = 11
+          call mpabort("TEST_ABORT_STUB")
+          end program test_stubs
+        """, encoding="ascii")
+        binary = work / "test_stubs.x"
+        command([
+            "gfortran", "-O0", "-fcheck=all",
+            str(SOURCE / "resmod_def.f90"),
+            str(SOURCE / "plasimmod.f90"),
+            str(SOURCE / "mpimod_stub.f90"),
+            str(SOURCE / "cpl_stub.f90"),
+            str(SOURCE / "lsgmod_stub.f90"),
+            str(test_src),
+            "-o", str(binary),
+        ], cwd=work)
+        subprocess.run([str(binary)], cwd=work, capture_output=True, text=True)
+        self.assertIn("TEST_ABORT_STUB", (work / "Abort_Message").read_text())
+        self.assertIn("TEST_ABORT_STUB", (work / "test_diag.txt").read_text())
+
+
+class NetcdfOutputTests(unittest.TestCase):
+    """Regression tests for direct NetCDF-4 output, time averaging, and stub fallback."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        if shutil.which("gfortran") is None:
+            raise unittest.SkipTest("gfortran is required")
+        temporary = tempfile.TemporaryDirectory(prefix="plasim-netcdf-tests-")
+        cls.addClassCleanup(temporary.cleanup)
+        cls.work = Path(temporary.name)
+
+        # Check if NetCDF Fortran libraries are available
+        cls.has_netcdf = shutil.which("nf-config") is not None
+        if cls.has_netcdf:
+            try:
+                cls.exe_full = build_model(cls.work / "build_full", netcdfmod="netcdfmod")
+            except Exception:
+                cls.has_netcdf = False
+        cls.exe_stub = build_model(cls.work / "build_stub", netcdfmod="netcdfmod_stub")
+
+    def test_daily_netcdf_output(self) -> None:
+        """Verify direct daily NetCDF-4 output generation with deflate compression and time records."""
+        if not self.has_netcdf:
+            raise unittest.SkipTest("NetCDF-Fortran not available")
+        run = prepare_run(self.work, "run_daily_nc", days=2)
+        (run / "plasim_namelist").write_text(
+            "&plasim_nl\n"
+            " n_run_years=0, n_run_months=0, n_run_days=2, n_run_steps=0, "
+            "kick=0, ngui=0, seed=1, nnetcdf=1, noutput_avg=1, ndeflate=4\n/\n",
+            encoding="ascii",
+        )
+        command([str(self.exe_full)], cwd=run)
+        nc_file = run / "plasim_output.nc"
+        self.assertTrue(nc_file.is_file(), "plasim_output.nc was not created")
+        self.assertFalse((run / "plasim_output").exists(), "plasim_output service file should not exist when nnetcdf=1")
+        self.assertTrue((run / "ocean_output.nc").is_file(), "ocean_output.nc was not created")
+        self.assertFalse((run / "ocean_output").exists(), "ocean_output service file should not exist when nnetcdf=1")
+        self.assertTrue((run / "ice_output.nc").is_file(), "ice_output.nc was not created")
+        self.assertFalse((run / "ice_output").exists(), "ice_output service file should not exist when nnetcdf=1")
+
+        if shutil.which("cdo"):
+            ntime = subprocess.check_output(["cdo", "-s", "ntime", str(nc_file)], text=True).strip()
+            self.assertEqual(ntime, "2")
+            dates = subprocess.check_output(["cdo", "-s", "showtimestamp", str(nc_file)], text=True)
+            self.assertIn("2000-01-01T00:00:00", dates)
+            dates_oce = subprocess.check_output(["cdo", "-s", "showtimestamp", str(run / "ocean_output.nc")], text=True)
+            self.assertIn("2000-01-01T00:00:00", dates_oce)
+            self.assertNotIn("4000-", dates_oce)
+            dates_ice = subprocess.check_output(["cdo", "-s", "showtimestamp", str(run / "ice_output.nc")], text=True)
+            self.assertIn("2000-01-01T00:00:00", dates_ice)
+            self.assertNotIn("4000-", dates_ice)
+        if shutil.which("ncdump"):
+            dump = subprocess.check_output(["ncdump", "-h", str(nc_file)], text=True)
+            self.assertIn("time = UNLIMITED ; // (2 currently)", dump)
+            self.assertIn("float ta(time, lev, lat, lon)", dump)
+            self.assertIn("float ts(time, lat, lon)", dump)
+            self.assertIn("float ua(time, lev, lat, lon)", dump)
+            self.assertIn("float va(time, lev, lat, lon)", dump)
+            dump_oce = subprocess.check_output(["ncdump", "-h", str(run / "ocean_output.nc")], text=True)
+            self.assertIn("float sst(time, lat, lon)", dump_oce)
+            dump_ice = subprocess.check_output(["ncdump", "-h", str(run / "ice_output.nc")], text=True)
+            self.assertIn("float icec(time, lat, lon)", dump_ice)
+
+    def test_monthly_netcdf_output(self) -> None:
+        """Verify direct monthly NetCDF-4 output generation with nnetcdf=1 (defaulting noutput_avg=2)."""
+        if not self.has_netcdf:
+            raise unittest.SkipTest("NetCDF-Fortran not available")
+        run = prepare_run(self.work, "run_monthly_nc", days=0)
+        (run / "plasim_namelist").write_text(
+            "&plasim_nl\n"
+            " n_run_years=0, n_run_months=1, n_run_days=0, n_run_steps=0, "
+            "kick=0, ngui=0, seed=1, nnetcdf=1, ndeflate=4\n/\n",
+            encoding="ascii",
+        )
+        command([str(self.exe_full)], cwd=run)
+        nc_file = run / "plasim_output.nc"
+        self.assertTrue(nc_file.is_file(), "plasim_output.nc was not created")
+
+        if shutil.which("cdo"):
+            ntime = subprocess.check_output(["cdo", "-s", "ntime", str(nc_file)], text=True).strip()
+            self.assertEqual(ntime, "1")
+        if shutil.which("ncdump"):
+            dump = subprocess.check_output(["ncdump", "-v", "time", str(nc_file)], text=True)
+            self.assertIn("time = 0 ;", dump)
+
+    def test_instantaneous_netcdf_output(self) -> None:
+        """Verify direct instantaneous NetCDF-4 output generation with noutput_avg=0 governed by nwpd."""
+        if not self.has_netcdf:
+            raise unittest.SkipTest("NetCDF-Fortran not available")
+        run = prepare_run(self.work, "run_instant_nc", days=1)
+        (run / "plasim_namelist").write_text(
+            "&plasim_nl\n"
+            " n_run_years=0, n_run_months=0, n_run_days=1, n_run_steps=0, "
+            "kick=0, ngui=0, seed=1, nnetcdf=1, noutput_avg=0, nwpd=2, ndeflate=4\n/\n",
+            encoding="ascii",
+        )
+        command([str(self.exe_full)], cwd=run)
+        nc_file = run / "plasim_output.nc"
+        self.assertTrue(nc_file.is_file(), "plasim_output.nc was not created")
+
+        if shutil.which("cdo"):
+            ntime = subprocess.check_output(["cdo", "-s", "ntime", str(nc_file)], text=True).strip()
+            self.assertEqual(ntime, "2")
+
+    def test_stub_aborts_when_nnetcdf_requested(self) -> None:
+        """Verify that stub binary cleanly aborts when nnetcdf > 0 is selected."""
+        run = prepare_run(self.work, "run_stub_abort", days=1)
+        (run / "plasim_namelist").write_text(
+            "&plasim_nl\n"
+            " n_run_years=0, n_run_months=0, n_run_days=1, n_run_steps=0, "
+            "kick=0, ngui=0, seed=1, nnetcdf=1\n/\n",
+            encoding="ascii",
+        )
+        subprocess.run([str(self.exe_stub)], cwd=run, capture_output=True, text=True)
+        abort_file = run / "Abort_Message"
+        self.assertTrue(abort_file.is_file(), "Abort_Message was not written")
+        self.assertIn("NETCDF", abort_file.read_text().upper())
+        self.assertFalse((run / "plasim_output.nc").exists())
+
+    def test_classic_service_format_preserved_by_default(self) -> None:
+        """Verify that classic Service-format output is written when nnetcdf=0."""
+        run = prepare_run(self.work, "run_service_default", days=1)
+        command([str(self.exe_stub)], cwd=run)
+        self.assertTrue((run / "plasim_output").is_file(), "plasim_output service file was not created")
+        self.assertFalse((run / "plasim_output.nc").exists(), "plasim_output.nc should not exist when nnetcdf=0")
+        self.assertTrue((run / "ocean_output").is_file(), "ocean_output service file was not created")
+        self.assertFalse((run / "ocean_output.nc").exists(), "ocean_output.nc should not exist when nnetcdf=0")
+        self.assertTrue((run / "ice_output").is_file(), "ice_output service file was not created")
+        self.assertFalse((run / "ice_output.nc").exists(), "ice_output.nc should not exist when nnetcdf=0")
 
 
 if __name__ == "__main__":

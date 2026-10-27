@@ -12,7 +12,6 @@ on:
       - 'plasim/src/**'
       - 'plasim/dat/T21/**'
       - 'lsg/src/**'
-      - 'tools/**'
       - 'README.md'
       - 'FAQ.md'
       - 'CHANGELOG.md'
@@ -31,7 +30,6 @@ on:
       - 'plasim/src/**'
       - 'plasim/dat/T21/**'
       - 'lsg/src/**'
-      - 'tools/**'
       - 'README.md'
       - 'FAQ.md'
       - 'CHANGELOG.md'
@@ -59,7 +57,7 @@ jobs:
         run: |
           python -m pip install -r docs/requirements.txt
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential gfortran
+          sudo apt-get install -y --no-install-recommends build-essential gfortran libnetcdff-dev
       - name: Check source inventories and parameter coverage
         run: python docs/generate_reference.py --check
       - name: Build HTML and LaTeX sources

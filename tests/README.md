@@ -3,10 +3,25 @@
 Run from the repository root:
 
 ```sh
+python3 tests/run_tests.py -v
+```
+
+By default, `tests/run_tests.py` (also callable as `python3 -m tests`) runs
+test suites in parallel across up to 4 worker processes (`-j 4`) or the
+available CPU cores, and builds model binaries using parallel Make (`make -j`).
+To set the test worker count explicitly:
+
+```sh
+python3 tests/run_tests.py -j 4 -v
+```
+
+The standard single-process discovery command also remains supported:
+
+```sh
 python3 -m unittest discover -s tests -v
 ```
 
-GitHub Actions runs this command on pushes to `master` or `main`. It can also
+GitHub Actions runs the parallel test command on pushes to `master` or `main`. It can also
 be started manually from the Actions tab once the workflow is on the default
 branch. On pull requests targeting either branch, add the exact `run tests`
 label to start a run; later commits rerun the tests while the label remains.
@@ -14,10 +29,15 @@ label to start a run; later commits rerun the tests while the label remains.
 The tests need Python 3, `gfortran`, `cc`, and `make`. MPI tests additionally
 need `mpif90` and `mpiexec` from Open MPI or a compatible MPI installation;
 those tests are skipped locally if either tool is absent. Helper script tests
-additionally require `cdo` and are skipped locally if it is absent. CI installs
-and checks Open MPI and CDO, and installs `libx11-dev` for the MoSt input-reader
-tests. Those tests link X11 without opening a display; on macOS they use XQuartz
-development files under `/opt/X11` and skip if those files are absent.
+additionally require `cdo` and are skipped locally if it is absent. Direct NetCDF
+tests require NetCDF-Fortran development libraries (`nf-config` and `netcdf.mod`),
+provided by `libnetcdff-dev` on Debian/Ubuntu or `netcdf-fortran` on macOS;
+when absent, direct NetCDF generation tests are skipped and the suite verifies
+that the stub module `netcdfmod_stub` builds cleanly and safely aborts if
+`nnetcdf=1` is requested. CI installs and checks Open MPI, CDO, and NetCDF-Fortran,
+and installs `libx11-dev` for the MoSt input-reader tests. Those tests link X11
+without opening a display; on macOS they use XQuartz development files under
+`/opt/X11` and skip if those files are absent.
 The suite builds headless serial and two-rank MPI T21/L10
 binaries with and without LSG in temporary directories using the repository's
 existing `make_plasim` build rules. No generated files are written into the

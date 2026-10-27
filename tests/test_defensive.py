@@ -95,6 +95,19 @@ class MostInputTests(unittest.TestCase):
         self.assertIn("READ=1", result.stdout)
         self.assertIn("VALUE=7", result.stdout)
 
+    def test_defaults_and_netcdf_selection(self):
+        """Verify default selections (output on, gui off, netcdf off, noutput_avg=2) and model-dependent NetCDF visibility."""
+        result = self.run_reader("defaults", "0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("NOUTPUT=1", result.stdout)
+        self.assertIn("NGUI=0", result.stdout)
+        self.assertIn("NNETCDF=0", result.stdout)
+        self.assertIn("NOUTPUT_AVG=2", result.stdout)
+        self.assertIn("PLASIM_SEL_NETCDF_NO=0", result.stdout)
+        self.assertIn("PLASIM_SEL_NETCDF_AVG_NO=0", result.stdout)
+        self.assertIn("PUMA_SEL_NETCDF_NO=1", result.stdout)
+        self.assertIn("PUMA_SEL_NETCDF_AVG_NO=1", result.stdout)
+
     def test_grid_valid_and_malformed(self):
         path = self.work / "grid.sra"
         header = "".join(f"{n:10d}" for n in (129, 0, 0, 0, 8, 4, 0, 0)) + "\n"

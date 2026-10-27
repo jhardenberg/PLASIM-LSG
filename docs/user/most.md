@@ -36,6 +36,12 @@ To configure and build PlaSim through MoSt, install:
   (`mpiexec`) for multi-core parallel runs.
 - **CDO (Climate Data Operators):** Used by the generated `most_plasim_run`
   script (`scripts/srv2nc`) to convert raw Service output to NetCDF4.
+- **NetCDF-Fortran (optional, for direct NetCDF output):** Required when direct
+  NetCDF-4 output is enabled (`nnetcdf = 1` or the **NetCDF Output** checkbox in
+  MoSt). Install `libnetcdff-dev` (and `netcdf-bin` for utilities) on Ubuntu/Debian,
+  or `brew install netcdf-fortran netcdf` on macOS. If `nf-config` is not found on
+  `PATH`, the build system automatically falls back to the stub module
+  `netcdfmod_stub` and produces classic Service format output (`nnetcdf = 0`).
 
 From the repository root, run `configure.sh` to detect your compilers, create
 the compiler-option files (`most_compiler`, `most_precision_options`, and
@@ -80,8 +86,11 @@ For a first serial Earth experiment:
    off.
 3. Under **Parallelism** and **Resolution**, set **Cores** to `1`, select
    **T21 [64x32]**, and set **Levels** to `10`.
-4. Under **Options**, enable **Double Precision** and **Write Output**, and
-   disable **Run with GUI** (recommended for all normal and production runs).
+4. Under **Options**, enable **Double Precision** and confirm **Write Output**
+   (enabled by default). To produce direct NetCDF-4 files instead of raw Service format,
+   select **NetCDF Output** and optionally set **NetCDF Average** (`2` for monthly
+   averages by default, `1` for daily averages, or `0` for instantaneous steps).
+   **Run with GUI** is disabled by default for headless performance.
 5. Under **Simulation**, set **Start year** to `2000` and **Years to run** to
    `1`.
 6. Click **Save & Exit** to compile the model and populate `plasim/run/`
@@ -118,9 +127,8 @@ Key points for `-c` mode:
   filename argument reads `most_last_used.cfg`.
 - **Fallback warning:** If the specified `.cfg` file cannot be opened or lacks
   the `[MoSt` header, MoSt prints `Using default configuration` and falls back
-  to internal defaults (which have `Run with GUI = 1` and `Write Output = 0`).
-  Always check the terminal output and keep `Run with GUI = 0` in your `.cfg`
-  file for headless runs.
+  to internal defaults (which have `Run with GUI = 0`, `Write Output = 1`,
+  `NetCDF Output = 0`, and `NetCDF Average = 2`).
 
 ## Step 3: Understand the prepared `plasim/run` directory
 
@@ -176,10 +184,26 @@ for ((YEAR=$YEAR1; YEAR<=$YEAR2; YEAR++)); do
    ./most_plasim_t21_l10_p1.x
    if [ -e Abort_Message ]; then exit 1; fi
    if [ -e plasim_diag ]; then mv plasim_diag output/$DIAGNAME; fi
-   if [ -e plasim_output ]; then $srv2nc $average plasim_output output/$DATANAME; fi
-   if [ -e ocean_output ]; then $srv2nc $average ocean_output output/$OCENAME; fi
-   if [ -e ice_output ]; then $srv2nc $average ice_output output/$ICENAME; fi
-   if [ -e lsg_output ]; then $srv2nc lsg_output output/$LSGNAME; fi
+   if [ -e plasim_output.nc ]; then
+      mv plasim_output.nc output/$DATANAME
+   elif [ -e plasim_output ]; then
+      $srv2nc $average plasim_output output/$DATANAME
+   fi
+   if [ -e ocean_output.nc ]; then
+      mv ocean_output.nc output/$OCENAME
+   elif [ -e ocean_output ]; then
+      $srv2nc $average ocean_output output/$OCENAME
+   fi
+   if [ -e ice_output.nc ]; then
+      mv ice_output.nc output/$ICENAME
+   elif [ -e ice_output ]; then
+      $srv2nc $average ice_output output/$ICENAME
+   fi
+   if [ -e lsg_output.nc ]; then
+      mv lsg_output.nc output/$LSGNAME
+   elif [ -e lsg_output ]; then
+      $srv2nc lsg_output output/$LSGNAME
+   fi
    if [ -e plasim_status ]; then
       cp plasim_status plasim_restart
       mv plasim_status restart/$RESTNAME
@@ -207,6 +231,14 @@ done
 - **`srv2nc=...`:** Absolute path to the repository's `scripts/srv2nc`
   converter. Update this path if you move the repository or copy the experiment
   to another machine.
+
+```{note}
+**On-the-fly NetCDF and Service output handling:** The generated `most_plasim_run`
+script checks on the fly for each model component whether `.nc` files are present
+(`plasim_output.nc`, `ocean_output.nc`, `ice_output.nc`, `lsg_output.nc`). If direct
+NetCDF files exist, the script moves them directly to `output/`; if raw Service-format
+files exist, it converts them using `srv2nc`.
+```
 
 ### What happens during each loop iteration
 

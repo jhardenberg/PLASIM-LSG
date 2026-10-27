@@ -1,6 +1,8 @@
       module oceanmod
 
       use resmod
+      use netcdfmod, only: netcdf_ocean_init, netcdf_ocean_write,       &
+     &                     netcdf_ocean_close, nnetcdf
 !
 !     version identifier (date)
 !
@@ -353,8 +355,11 @@
 !
 !     open output file
 !
-      if (mypid == NROOT .and. noutput > 0) then
+      if (mypid == NROOT .and. noutput > 0 .and. nnetcdf == 0) then
        open(31,file=ocean_output,form='unformatted')
+      endif
+      if (noutput > 0 .and. nnetcdf > 0) then
+       call netcdf_ocean_init(ocean_output)
       endif
 !
 !     copy output to icemod
@@ -574,7 +579,15 @@
        yifluxa(:)=yifluxa/real(naccuout)
        ydssta(:)=ydssta/real(naccuout)
        yqhda(:)=yqhda/real(naccuout)
-       if(noutput > 0) call oceanout
+       if(noutput > 0) then
+          if (nnetcdf == 0) then
+             call oceanout
+          else
+             call netcdf_ocean_write(yheata, yifluxa, yfssta, ydssta,   &
+     &                               yqhda, yfldoa, yicec, ysst(:,1),   &
+     &                               yls, yclsst2, nstep, ntspd)
+          endif
+       endif
        yfssta(:)=0.
        yheata(:)=0.
        yfldoa(:)=0.
@@ -641,9 +654,10 @@
 !
 !     close output file
 !
-      if (mypid == NROOT) then
+      if (mypid == NROOT .and. nnetcdf == 0) then
        close(31)
       endif
+      if (nnetcdf > 0) call netcdf_ocean_close
 !
 !     stop lsg coupling
 !

@@ -12,6 +12,29 @@ updates check the merged developments identified below, including mainline
 change model sources. Source checks and runtime checks below are deliberately
 distinguished.
 
+## T31 benchmark extension and timing alignment
+
+Checked `benchmarks/run.py` (`RESOLUTIONS`, `arguments`, `build`, `prepare`,
+`state_summary`) against MoSt `PlasimSteps`: T21/T31/T42 use 45/30/20-minute
+Earth timesteps (32/48/72 steps/day). The runner writes `NTSPD` explicitly
+so older source revisions with different automatic defaults use the same
+benchmark timestep. This anticipates the model-default alignment requested
+in issue #72. Coupled T31 uses its native N048 land mask because `lsg/dat`
+only supplies an N032 replacement. Its one/ten-day exchange intervals are
+48/480 atmospheric steps. T21/T42 remain the default selected resolutions.
+
+Earlier validation of PR #71 used 40-step/day T31 and 48-step/day T42;
+those historical smoke results do not validate the revised workload or
+provide matching performance baselines. Updated validation is recorded
+below after rerunning the benchmark with the explicit MoSt timings.
+
+All 31 benchmark-tool tests passed after alignment. The exact
+`benchmark-smoke.sh T31` example passed both serial cases at 48 steps/day
+for ten days (final atmospheric step 17760; one LSG step and finite
+nonzero returned heat flux). Strict Sphinx HTML and reference-inventory
+checks passed. These are execution checks, not climate/scaling validation.
+Previous MPI smoke results retain their historical timing scope above.
+
 ## Issue #72: aligned atmospheric and coupling defaults
 
 Checked MoSt `PlasimSteps`, `CheckPlasimNamelist`, `InitNamelist`, and
@@ -55,6 +78,26 @@ stopped after repeated GitHub rate limits. These short checks do not establish
 long-term climate validity or MPI scaling. Timing migrations are functional
 changes, not numerical equivalence claims for old T31/T42 climates.
 
+## Issue #20: coupled LSG surface masks and grid consistency
+
+Checked `cplini` in `cpl.f90`, `topogr` in `lsg/dat/`, `most.c`, and
+`scripts/derive_lsg_sra.py`. In PlaSim–LSG coupling, `cplini` maps atmospheric
+cells (`nlon` × `nlat`) to the LSG ocean E-grid (72 × 76). Uncoupled atmospheric
+ocean points (`kmiss_a > 0`) produce uncompensated fluxes over land bathymetry,
+while starved ocean vector points (`kmiss_v > 0`) zero out wind stresses on
+active ocean currents.
+Historically, `lsg/dat` supplied an adapted mask only for T21 (`N032_surf_0172.sra`).
+At T31 and T42, falling back to default PlaSim masks produced 58 and 137
+uncoupled cells and 2 starved vectors.
+The automated derivation implemented in `scripts/derive_lsg_sra.py`
+closes atmospheric points with zero ocean depth (`zslmoa < 1e-9`), preserves the
+Panama barrier, and selectively opens atmospheric cells overlapping starved ocean
+vectors (clearing Gibraltar and North Greenland). Across T21, T31, and T42,
+this automated algorithm achieves `kmiss_a = 0` and `kmiss_v = 0` with 19 coastal scalar
+extrapolations (`kmiss_s`). The ocean grid, bathymetry, and matrices remain
+unaltered. Verified `derive_lsg_sra.py` across all three resolutions and added
+T31 support to `scripts/sra2nc`.
+
 ## Historical chapter coverage
 
 | Original material | Current Sphinx destination | Code comparison and resulting update |
@@ -63,7 +106,7 @@ changes, not numerical equivalence claims for old T31/T42 climates.
 | Chapter 2: module overview | User: components; developer: architecture | Actual default `make_plasim` variants and lifecycle calls replace obsolete PUMA/module/group references; SIMBA has `vegmod_nl`; sea exchange declaration default is one step. |
 | Chapter 3: parallel execution | User: parallel/LSG; developer: architecture/testing | `resmod`, shared dimensions, `mpimod`, and MoSt core checks: compiled rank count, latitude divisibility, padded spectral layout; no manual `use mpi` editing recipe. |
 | Chapter 4: GUI | User: GUI | `pumax.c:ReadConfig`, plot/palette registries, `guimod`, and sent arrays: file precedence, actual names/scaling, and separate X11 dependencies; old PUMA editors are not promoted as PlaSim workflows. |
-| Chapter 5: postprocessor | User: postprocessing; reference: output | `burn7.cpp:Usage`, `parini`, option parser, `InitAll`, writers; `srv2nc` branches: direct CDO conversion now exists, current horizontal/vertical defaults are G/P, `-g` is GrADS, wind codes are 131/132. |
+| Chapter 5: postprocessor | User: postprocessing; reference: output | `burn7.cpp:Usage`, `parini`, option parser, `InitAll`, writers; `srv2nc`, `burn.sh`, and `postmon.sh`: direct CDO conversion now exists, current horizontal/vertical defaults are G/P, `-g` is GrADS, wind codes are 131/132; `postmon.sh` monthly extraction and fixed-field handling documented against source. |
 | Chapter 6: graphics | User: visualization | Retained CDO inspection and replaced the GrADS/Vis5D recipes with an xarray/Matplotlib map. Checked `srv2nc` code 167, kelvin units, and Gaussian `lon`/`lat` coordinates; the literal-included Python script uses the first output sample without further averaging or conversion. |
 | Chapter 7: columns/soundings | Excluded from manual | Obsolete `COLUMN`/`YMODE` macro and single-column experiment recipe omitted from the manual as unsupported in PlaSim-LSG TNG. |
 | Appendix A: symbols/constants | Reference: units; user: planets | Shared dimension formulas and current planet presets replace rounded old constants. Derivation-only notation stays with the excluded scientific Reference Manual. |
@@ -184,3 +227,64 @@ actually checked. Update descriptions to match code when old information
 is stale. If the code reveals a suspected bug, reproduce it where practical
 and report it separately instead of silently correcting the implementation
 or documenting intended behavior as if it were current.
+
+## Direct NetCDF-4 output verification
+
+- Checked `plasim/src/netcdfmod.f90` and `plasim/src/netcdfmod_stub.f90`:
+  - Module `netcdfmod` implements direct NetCDF-4 output with coordinate variables `lon`, `lat`, `lev`, `time`, and 50 atmospheric physical variables (`plasim_output.nc`).
+  - Added direct NetCDF-4 output for mixed-layer ocean `oceanmod` (`ocean_output.nc`, 10 variables: `heata`, `ifluxa`, `fssta`, `dssta`, `qhda`, `fldoa`, `icec`, `sst`, `ls`, `clsst`) and sea ice `icemod` (`ice_output.nc`, 24 variables).
+  - LSG ocean coupling continues writing classic Service format (`lsg_output`), converted via `srv2nc`.
+  - Chunking configured per horizontal Gaussian slice (`NLON` × `NLAT`) and deflate compression set via `ndeflate` (level 0–9, default 4).
+  - Time-averaging modes: instantaneous (`noutput_avg = 0`), daily mean (`noutput_avg = 1`), monthly mean (`noutput_avg = 2`), recording timestamps at the beginning of each accumulation period relative to the start date across atmosphere, ocean, and sea ice.
+  - Fallback stub `netcdfmod_stub.f90` provides graceful build on environments lacking NetCDF libraries, aborting cleanly if `nnetcdf > 0` is requested at runtime.
+- Checked `plasim/src/plasimmod.f90`, `plasim/src/oceanmod.f90`, and `plasim/src/icemod.f90`:
+  - Added namelist variables `nnetcdf`, `noutput_avg`, and `ndeflate` with defaults `0`, `1`, `4` respectively, preserving classic Service-format Earth baselines by default.
+  - Added MPI broadcasts in `readnl`.
+  - Conditioned classic Service file output routines on `nnetcdf == 0` and called `netcdf_ocean_write` and `netcdf_ice_write` when `nnetcdf > 0`.
+- Checked `plasim/src/make_plasim`:
+  - Added `${NETCDFMOD}.o` as dependency for `oceanmod.o` and `icemod.o`.
+- Checked `most.c`:
+  - Updated run-script generation to detect `plasim_output.nc`, `ocean_output.nc`, and `ice_output.nc` and move them directly to `output/` without invoking `srv2nc`.
+- Checked `docs/reference/parameters/plasim.md` and parameter inventory via `python3 docs/generate_reference.py --check`.
+
+## MoSt NetCDF output button and default updates verification
+
+- Checked `most.c`:
+  - Added `NetCDF Output` checkbox linked to `nnetcdf` (default 0), displayed for PlaSim and hidden for other models.
+  - Updated defaults: `Write Output` (`noutput`) defaults to 1, and `Run with GUI` (`ngui`) defaults to 0.
+  - Updated `WriteRunScript`: generates a unified driver script that defines `average="-m"` and `srv2nc=...` and checks on the fly (`if [ -e <file>.nc ]; then mv ...; elif [ -e <file> ]; then $srv2nc ...; fi`) across `plasim_output`, `ocean_output`, `ice_output`, and `lsg_output`.
+  - Updated `Build()`: passes `NETCDFMOD=netcdfmod` when `nnetcdf=1` and `NETCDFMOD=netcdfmod_stub` when `nnetcdf=0`, maintaining rebuild marker `NETCDF`.
+  - Updated `WriteNamelistFile`: writes `NNETCDF` to `plasim_namelist`.
+  - Verified with `MostInputTests.test_defaults_and_netcdf_selection` in `tests/test_defensive.py` and `MostRunScriptTests` in `tests/test_scripts.py`.
+
+## NetCDF build auto-detection and CI dependencies verification
+
+- Checked `plasim/src/make_plasim`:
+  - Added detection of `nf-config` via `command -v nf-config`. If not detected, `NETCDFMOD` defaults to `netcdfmod_stub`; otherwise defaults to `netcdfmod`. Preserves explicit `NETCDFMOD` overrides.
+- Checked `tests/test_model.py`:
+  - Updated `build_model` helper to default `netcdfmod` to `"netcdfmod"` when `nf-config` is present and `"netcdfmod_stub"` otherwise.
+- Checked CI workflows:
+  - `.github/workflows/tests.yml`: Added `libnetcdff-dev` and `netcdf-bin` to apt installation.
+  - `.github/workflows/docs.yml`: Added `libnetcdff-dev` to apt installation.
+- Checked documentation:
+  - `docs/user/most.md`: Documented NetCDF-Fortran prerequisite for direct NetCDF output and automatic fallback to `netcdfmod_stub` when absent.
+  - `docs/development/direct-build.md`: Clarified requirements for classic builds without NetCDF versus direct NetCDF-4 builds.
+  - `docs/user/postprocessing.md`: Documented compilation requirements and stub abort behavior.
+  - `tests/README.md`: Documented NetCDF test requirements and stub verification.
+- Checked `plasim/src/netcdfmod.f90`:
+  - Sliced `du(:,1:NLEV)` and `dv(:,1:NLEV)` for accumulation and instantaneous output to match `NLEV` dimension of `acc_u` and `acc_v` (`du` and `dv` are allocated `NLEP` levels in `plasimmod.f90`).
+
+## NetCDF monthly average default and MoSt selector verification
+
+- Checked `plasim/src/plasimmod.f90`:
+  - Changed default of `noutput_avg` from `1` (daily average) to `2` (calendar monthly average).
+- Checked `most.c`:
+  - Added integer selection `NetCDF Average` (`noutput_avg`, default 2), active for PlaSim and hidden for other models.
+  - Added range clamping `[0, 2]` in `CheckPlasimNamelist`.
+  - Added `NOUTPUT_AVG` output to `plasim_namelist` in `WriteNamelistFile`.
+- Checked `docs/reference/parameters/plasim.md`, `docs/reference/output.md`, `docs/user/postprocessing.md`, and `docs/user/most.md`:
+  - Documented default `noutput_avg = 2` (monthly averaging) and MoSt selection option.
+- Checked tests:
+  - `tests/test_defensive.py`: Verified `NOUTPUT_AVG=2` and `SelNetCDFAvg` visibility in `test_defaults_and_netcdf_selection`.
+  - `tests/test_scripts.py`: Verified `SelNetCDFAvg` and `NOUTPUT_AVG` generation in `test_most_c_netcdf_output_and_default_directives`.
+  - `tests/test_model.py`: Verified in `test_monthly_netcdf_output` that omitting `noutput_avg` defaults to monthly averaging (`noutput_avg=2`).
