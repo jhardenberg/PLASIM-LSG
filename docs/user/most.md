@@ -36,6 +36,12 @@ To configure and build PlaSim through MoSt, install:
   (`mpiexec`) for multi-core parallel runs.
 - **CDO (Climate Data Operators):** Used by the generated `most_plasim_run`
   script (`scripts/srv2nc`) to convert raw Service output to NetCDF4.
+- **NetCDF-Fortran (optional, for direct NetCDF output):** Required when direct
+  NetCDF-4 output is enabled (`nnetcdf = 1` or the **NetCDF Output** checkbox in
+  MoSt). Install `libnetcdff-dev` (and `netcdf-bin` for utilities) on Ubuntu/Debian,
+  or `brew install netcdf-fortran netcdf` on macOS. If `nf-config` is not found on
+  `PATH`, the build system automatically falls back to the stub module
+  `netcdfmod_stub` and produces classic Service format output (`nnetcdf = 0`).
 
 From the repository root, run `configure.sh` to detect your compilers, create
 the compiler-option files (`most_compiler`, `most_precision_options`, and

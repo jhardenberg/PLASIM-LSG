@@ -77,9 +77,11 @@ def build_model(
     build: Path, *, lsg: bool = False, ranks: int = 1, precision: str = "-fdefault-real-8",
     latitudes: int = 32, fflags: str = "-O0", rainmod: str = "rainmod", fftmod: str = "fftmod",
     jobs: int | None = None,
-    netcdfmod: str = "netcdfmod",
+    netcdfmod: str | None = None,
 ) -> Path:
     """Build L10 at the selected latitude count with optional MPI and real LSG."""
+    if netcdfmod is None:
+        netcdfmod = "netcdfmod" if shutil.which("nf-config") is not None else "netcdfmod_stub"
     compiler = "mpif90" if ranks > 1 else "gfortran"
     for program in (compiler, "make", "cc"):
         if shutil.which(program) is None:

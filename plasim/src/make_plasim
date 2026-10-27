@@ -30,7 +30,12 @@ PLAMOD=p_earth
 LANDMOD=landmod
 OCEAN=lsgmod
 OCEANCOUP=cpl
-NETCDFMOD?=netcdfmod
+HAS_NFCONFIG:=$(shell command -v nf-config 2>/dev/null)
+ifeq ($(HAS_NFCONFIG),)
+   NETCDFMOD?=netcdfmod_stub
+else
+   NETCDFMOD?=netcdfmod
+endif
 
 ifeq ($(NETCDFMOD),netcdfmod_stub)
    NETCDF_INC=

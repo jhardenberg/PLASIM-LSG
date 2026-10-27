@@ -24,6 +24,17 @@ your `PATH`. The script uses the existing `make_plasim` rules, compiles with
 temporary directory. These flags match the short regression builds; a
 production build and its numerical results need separate validation.
 
+The build system supports two environment configurations:
+- **Classic build (without NetCDF):** Requires only the base compilers and `make`.
+  If `nf-config` is not detected on `PATH`, `make_plasim` automatically defaults
+  to `NETCDFMOD=netcdfmod_stub`. The model writes classic binary Service format
+  output (`plasim_output`).
+- **Direct NetCDF-4 build:** Additionally requires NetCDF-Fortran development
+  libraries and headers (`libnetcdff-dev` on Ubuntu/Debian, `netcdf-fortran` on
+  macOS via Homebrew). When `nf-config` is present on `PATH`, `make_plasim`
+  defaults to `NETCDFMOD=netcdfmod`, enabling direct NetCDF-4 output
+  (`plasim_output.nc`) when `nnetcdf=1` is configured in `plasim_namelist`.
+
 The checkout supplies all model inputs for this example. Build files and
 outputs go into separate `build` and `run` directories under the reported
 temporary workspace. The script retains that workspace for inspection and

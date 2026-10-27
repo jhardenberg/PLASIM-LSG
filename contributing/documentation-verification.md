@@ -256,3 +256,18 @@ or documenting intended behavior as if it were current.
   - Updated `Build()`: passes `NETCDFMOD=netcdfmod` when `nnetcdf=1` and `NETCDFMOD=netcdfmod_stub` when `nnetcdf=0`, maintaining rebuild marker `NETCDF`.
   - Updated `WriteNamelistFile`: writes `NNETCDF` to `plasim_namelist`.
   - Verified with `MostInputTests.test_defaults_and_netcdf_selection` in `tests/test_defensive.py` and `MostRunScriptTests` in `tests/test_scripts.py`.
+
+## NetCDF build auto-detection and CI dependencies verification
+
+- Checked `plasim/src/make_plasim`:
+  - Added detection of `nf-config` via `command -v nf-config`. If not detected, `NETCDFMOD` defaults to `netcdfmod_stub`; otherwise defaults to `netcdfmod`. Preserves explicit `NETCDFMOD` overrides.
+- Checked `tests/test_model.py`:
+  - Updated `build_model` helper to default `netcdfmod` to `"netcdfmod"` when `nf-config` is present and `"netcdfmod_stub"` otherwise.
+- Checked CI workflows:
+  - `.github/workflows/tests.yml`: Added `libnetcdff-dev` and `netcdf-bin` to apt installation.
+  - `.github/workflows/docs.yml`: Added `libnetcdff-dev` to apt installation.
+- Checked documentation:
+  - `docs/user/most.md`: Documented NetCDF-Fortran prerequisite for direct NetCDF output and automatic fallback to `netcdfmod_stub` when absent.
+  - `docs/development/direct-build.md`: Clarified requirements for classic builds without NetCDF versus direct NetCDF-4 builds.
+  - `docs/user/postprocessing.md`: Documented compilation requirements and stub abort behavior.
+  - `tests/README.md`: Documented NetCDF test requirements and stub verification.
