@@ -25,7 +25,7 @@ import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-RESOLUTIONS = {"T21": (32, 32), "T31": (48, 48), "T42": (64, 72)}  # latitudes, steps per Earth day
+RESOLUTIONS = {"T21": (32, 32), "T31": (48, 48), "T42": (64, 72), "T63": (96, 96)}  # latitudes, steps per Earth day
 CASES = ("mixed", "lsg")
 NAMELISTS = ("fluxmod", "icemod", "landmod", "miscmod", "oceanmod", "planet",
              "radmod", "rainmod", "seamod", "surfmod", "vegmod")
@@ -326,7 +326,8 @@ def build(args, work: Path, output: Path, resolution: str, lsg: bool, ranks: int
         MOST_F90=current_fc,
         MOST_F90_OPTS=args.mpifflags if ranks > 1 else args.fflags,
         MOST_PREC=build_prec, MPIMOD="mpimod" if ranks > 1 else "mpimod_stub",
-        GUIMOD="guimod_stub", PUMAX="pumax_stub", GUILIB="", FFTMOD="fftmod",
+        GUIMOD="guimod_stub", PUMAX="pumax_stub", GUILIB="",
+        FFTMOD="fft991mod" if resolution == "T63" else "fftmod",
         RAINMOD="rainmod", VEGMOD="simba", PLAMOD="p_earth", LANDMOD="landmod",
         OCEAN="lsgmod" if lsg else "lsgmod_stub", OCEANCOUP="cpl" if lsg else "cpl_stub",
     )
@@ -339,18 +340,21 @@ def build(args, work: Path, output: Path, resolution: str, lsg: bool, ranks: int
 def prepare(args, directory: Path, resolution: str, case: str) -> dict:
     directory.mkdir()
     lsg = case.startswith("lsg")
-    for path in (args.source / f"plasim/dat/{resolution}").iterdir():
-        if path.is_file():
-            shutil.copy2(path, directory / path.name)
+    dat_dir = args.source / f"plasim/dat/{resolution}"
+    if dat_dir.exists():
+        for path in dat_dir.iterdir():
+            if path.is_file():
+                shutil.copy2(path, directory / path.name)
     if lsg:
         for path in (args.source / "lsg/dat").iterdir():
             if path.is_file():
                 shutil.copy2(path, directory / path.name)
     configs = {f"{module}_namelist": f"&{module}_nl\n/\n" for module in NAMELISTS}
+    aqua_opt = "naqua=1, " if resolution == "T63" else ""
     configs["plasim_namelist"] = (
         "&plasim_nl\n n_run_years=0, n_run_months=0, "
         f"n_run_days={args.days}, n_run_steps=0, n_days_per_year=360, "
-        f"ntspd={RESOLUTIONS[resolution][1]}, "
+        f"ntspd={RESOLUTIONS[resolution][1]}, {aqua_opt}"
         "n_start_year=1, n_start_month=1, "
         f"kick=0, ngui=0, seed=1, noutput={int(args.io == 'daily')}, "
         f"nwpd=1, ndiagcf=0, ntime={int(not args.no_timers)}\n/\n")
@@ -450,7 +454,7 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True,
                         help="Directory for results and logs (continues if results.json exists)")
     parser.add_argument("--resolutions", nargs="+", choices=RESOLUTIONS, default=["T21", "T42"],
-                        help="Atmospheric resolutions (default: T21 T42; T31 is optional)")
+                        help="Atmospheric resolutions (default: T21 T42; T31 and T63 are optional)")
     parser.add_argument("--cases", nargs="+", choices=CASES, default=list(CASES))
     parser.add_argument("--ranks", nargs="+", type=int, default=[1], help="MPI sizes; 1 uses a serial build")
     parser.add_argument("--parallel", action="store_true",
@@ -513,10 +517,16 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
         for ranks in args.ranks:
             if ranks < 1 or ranks & (ranks-1) or RESOLUTIONS[resolution][0] % ranks:
                 parser.error("ranks must be powers of two dividing each selected latitude count")
-    if any(case.startswith("lsg") for case in args.cases) and args.days % args.coupling_days:
+    if any(case.startswith("lsg") for r in args.resolutions for case in cases_for_resolution(r, args.cases)) and args.days % args.coupling_days:
         parser.error("LSG days must be a positive multiple of --coupling-days")
     for name in ("resolutions", "cases", "ranks"):
         setattr(args, name, list(dict.fromkeys(getattr(args, name))))
+    if "T63" in args.resolutions:
+        if all(case.startswith("lsg") for case in args.cases):
+            parser.error("T63 benchmark is limited to the mixed layer case; LSG is not supported at T63")
+        print("WARNING: T63 benchmark runs in aquaplanet mode (naqua=1); boundary data are not needed.", file=sys.stderr)
+        if any(case.startswith("lsg") for case in args.cases):
+            print("WARNING: T63 benchmark is limited to the mixed layer case; LSG is omitted for T63.", file=sys.stderr)
 
     all_specified = (
         args.fc is not None and args.fflags is not None and
@@ -567,6 +577,13 @@ def valid_samples(samples: list, warmups: int, repeats: int) -> list[dict]:
             break
         kept.append(sample)
     return kept
+
+
+def cases_for_resolution(resolution: str, requested_cases: list[str]) -> list[str]:
+    """Return applicable benchmark cases for a resolution (T63 is limited to mixed layer)."""
+    if resolution == "T63":
+        return [c for c in requested_cases if not c.startswith("lsg")]
+    return requested_cases
 
 
 def continuation_differences(existing: dict, current: dict, expected_cases: list[str]) -> list[str]:
@@ -765,7 +782,7 @@ def main():
         expected_cases = [f"{resolution}-{case}-p{ranks}"
                           for resolution in args.resolutions
                           for ranks in args.ranks
-                          for case in args.cases]
+                          for case in cases_for_resolution(resolution, args.cases)]
         if existing is not None:
             differences = continuation_differences(existing, report, expected_cases)
             if differences:
@@ -784,7 +801,7 @@ def main():
         planned = []
         for resolution in args.resolutions:
             for ranks in args.ranks:
-                for case in args.cases:
+                for case in cases_for_resolution(resolution, args.cases):
                     name = f"{resolution}-{case}-p{ranks}"
                     case_output = args.output / name
                     template = work / (name + "-inputs")

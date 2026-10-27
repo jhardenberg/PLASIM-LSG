@@ -20,9 +20,11 @@ or extra Python packages are required.
 
 The default matrix has four serial cases: each configuration below runs
 at both T21/L10 and T42/L10. Each additional MPI rank count runs the same
-four configurations. T31/L10 (96 × 48 grid points) can also be selected with
-`--resolutions T31`, or combined with the others using
-`--resolutions T21 T31 T42`. The default remains T21/T42.
+four configurations. T31/L10 (96 × 48 grid points) and T63/L10 (192 × 96 grid points)
+can also be selected with `--resolutions T31` or `--resolutions T63`, or combined with
+the others using `--resolutions T21 T31 T42 T63`. The default remains T21/T42.
+T63 runs in aquaplanet mode (`naqua=1`) without boundary data files and is limited to
+the mixed-layer case (LSG is not supported at T63).
 
 | Case | Radiation | Ocean |
 | --- | --- | --- |
@@ -36,7 +38,7 @@ capability remains available for ordinary experiments.
 The benchmark protocol prescribes Earth, ten atmospheric levels, a 360-day
 year starting on 1 January of year 1, `seed=1`, `kick=0`, and disabled
 cloud-forcing diagnostics. T21 uses 32 atmospheric steps/day, T31 uses 48,
-and T42 uses 72 (45/30/20 minutes, matching MoSt and the model defaults). The runner writes `NTSPD`
+T42 uses 72, and T63 uses 96 (45/30/20/15 minutes, matching MoSt and the model defaults). The runner writes `NTSPD`
 explicitly to keep these timings across source revisions. Historical
 40-step T31 and 48-step T42 results are different workloads; use a new
 results directory and retain source/input compatibility checks. Other physics settings inherit source defaults. Default
