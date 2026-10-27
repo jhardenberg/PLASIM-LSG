@@ -556,8 +556,8 @@
 
          if (noutput_avg == 0) then
             ! Instantaneous step mode: use current state variables
-            call write_field_3d(vid_ua,     du(:,:))
-            call write_field_3d(vid_va,     dv(:,:))
+            call write_field_3d(vid_ua,     du(:,1:NLEV))
+            call write_field_3d(vid_va,     dv(:,1:NLEV))
             call write_field_3d(vid_ta,     dt(:,1:NLEV))
             call write_field_3d(vid_hus,    dq(:,1:NLEV))
             call write_field_3d(vid_clw,    dql(:,1:NLEV))
@@ -682,8 +682,8 @@
          if (nnetcdf == 0 .or. noutput == 0) return
 
          ! Accumulate 3D prognostic/diagnostic fields
-         acc_u(:,:)   = acc_u(:,:)   + du(:,:)
-         acc_v(:,:)   = acc_v(:,:)   + dv(:,:)
+         acc_u(:,:)   = acc_u(:,:)   + du(:,1:NLEV)
+         acc_v(:,:)   = acc_v(:,:)   + dv(:,1:NLEV)
          acc_t(:,:)   = acc_t(:,:)   + dt(:,1:NLEV)
          acc_q(:,:)   = acc_q(:,:)   + dq(:,1:NLEV)
          acc_clw(:,:) = acc_clw(:,:) + dql(:,1:NLEV)

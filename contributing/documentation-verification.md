@@ -271,3 +271,5 @@ or documenting intended behavior as if it were current.
   - `docs/development/direct-build.md`: Clarified requirements for classic builds without NetCDF versus direct NetCDF-4 builds.
   - `docs/user/postprocessing.md`: Documented compilation requirements and stub abort behavior.
   - `tests/README.md`: Documented NetCDF test requirements and stub verification.
+- Checked `plasim/src/netcdfmod.f90`:
+  - Sliced `du(:,1:NLEV)` and `dv(:,1:NLEV)` for accumulation and instantaneous output to match `NLEV` dimension of `acc_u` and `acc_v` (`du` and `dv` are allocated `NLEP` levels in `plasimmod.f90`).
