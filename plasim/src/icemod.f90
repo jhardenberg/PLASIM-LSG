@@ -1,6 +1,8 @@
       module icemod
 
       use resmod
+      use netcdfmod, only: netcdf_ice_init, netcdf_ice_write,           &
+     &                     netcdf_ice_close, nnetcdf
 !
 !     version identifier (date)
 !
@@ -402,9 +404,12 @@
 !
 !     open output file
 !
-      if (mypid == NROOT .and. noutput > 0) then
+      if (mypid == NROOT .and. noutput > 0 .and. nnetcdf == 0) then
          open(71,file=ice_output,form='unformatted')
       endif ! (mypid == NROOT)
+      if (noutput > 0 .and. nnetcdf > 0) then
+         call netcdf_ice_init(ice_output)
+      endif
 !
 !     initialize ocean
 !
@@ -455,6 +460,7 @@
 !
       real :: zsnowold(NHOR),zcflux(NHOR)
       real :: zicedold(NHOR)
+      real :: zsnowout(NHOR)
 !
 !     debug arrays
 !
@@ -793,7 +799,19 @@
        xcpmea(:)=xcpmea(:)/REAL(naccuout)
        xcroffa(:)=xcroffa(:)/REAL(naccuout)
        xstoia(:)=xstoia(:)/REAL(naccuout)
-       if(noutput > 0) call iceout
+       if(noutput > 0) then
+          if (nnetcdf == 0) then
+             call iceout
+          else
+             zsnowout(:) = 0.0
+             where (xls(:) < 0.5) zsnowout(:) = 1000./CRHOSN * xsnow(:)
+             call netcdf_ice_write(xheata, xofluxa, xtsfluxa, xsmelta, ximelta, &
+     &                             xcfluxa, xfluxca, xqmelta, xflxicea, xicec,  &
+     &                             xiced, xscflxa, xcfluxra, xcfluxna, xts,     &
+     &                             zsnowout, xsst, xls, xclicec2, xcliced2,     &
+     &                             xicecc, xcpmea, xcroffa, xstoia, nstep, ntspd)
+          endif
+       endif
        xflxicea(:)=0.
        xheata(:)=0.
        xofluxa(:)=0.
@@ -908,9 +926,10 @@
 !
 !     close output file
 !
-      if (mypid == NROOT) then
+      if (mypid == NROOT .and. nnetcdf == 0) then
        close(71)
       endif
+      if (nnetcdf > 0) call netcdf_ice_close
 !
 !     write restart file
 !

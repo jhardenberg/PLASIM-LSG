@@ -216,6 +216,99 @@ class MostRunScriptTests(unittest.TestCase):
         self.assertIn('if [ -e kleiin1 ]; then cp kleiin1 restart/$LSGRESTNAME; fi', most_c)
         self.assertNotIn('[ -e kleiin1 ] && cp kleiin1 restart/$LSGRESTNAME', most_c)
 
+    def test_most_c_netcdf_output_and_default_directives(self) -> None:
+        """Verify most.c has NetCDF Output button, correct defaults, and unified on-the-fly srv2nc checks."""
+        most_c = (ROOT / "most.c").read_text()
+        self.assertIn('InitNextSelection(Sel,dyn,"NetCDF Output");', most_c)
+        self.assertIn('InitNextSelection(Sel,dyn,"NetCDF Average");', most_c)
+        self.assertIn('Sel->piv  = &noutput;', most_c)
+        self.assertIn('Sel->piv  = &nnetcdf;', most_c)
+        self.assertIn('Sel->piv  = &noutput_avg;', most_c)
+        self.assertIn('Sel->piv  = &ngui;', most_c)
+        self.assertIn('fprintf(fp," %-12s=%6d\\n","NNETCDF",nnetcdf);', most_c)
+        self.assertIn('fprintf(fp," %-12s=%6d\\n","NOUTPUT_AVG",noutput_avg);', most_c)
+        self.assertIn('if [ -e %s.nc ]; then', most_c)
+        self.assertIn('mv %s.nc output/$DATANAME', most_c)
+        self.assertIn('if [ -e ocean_output.nc ]; then', most_c)
+        self.assertIn('if [ -e ice_output.nc ]; then', most_c)
+        self.assertIn('if [ -e lsg_output.nc ]; then', most_c)
+
+    def test_run_script_netcdf_execution_behavior(self) -> None:
+        """Verify run script moves .nc directly to output dir on the fly for all components."""
+        with tempfile.TemporaryDirectory(prefix="plasim-runscript-netcdf-test-") as tmpdir:
+            work = Path(tmpdir)
+            script_path = work / "test_run_netcdf"
+            script_content = (
+                "#!/bin/bash\n"
+                "set -e\n"
+                "EXP=TEST\n"
+                "YEAR1=1\n"
+                "YEAR2=1\n"
+                'average="-m"\n'
+                f"srv2nc={work / 'mock_srv2nc'}\n"
+                "[ $# == 1 ] && cd $1\n"
+                "rm -f plasim_restart\n"
+                "rm -f Abort_Message\n"
+                "mkdir -p output\n"
+                "mkdir -p restart\n"
+                "for ((YEAR=$YEAR1; YEAR<=$YEAR2; YEAR++)); do\n"
+                "   DATANAME=`printf '%s_PLA.%04d.nc' $EXP $YEAR`\n"
+                "   OCENAME=`printf '%s_OCE.%04d.nc' $EXP $YEAR`\n"
+                "   ICENAME=`printf '%s_ICE.%04d.nc' $EXP $YEAR`\n"
+                "   LSGNAME=`printf '%s_LSG.%04d.nc' $EXP $YEAR`\n"
+                "   DIAGNAME=`printf '%s_DIAG.%04d.txt' $EXP $YEAR`\n"
+                "   RESTNAME=`printf '%s_REST.%04d' $EXP $YEAR`\n"
+                "   LSGRESTNAME=`printf '%s_LSGREST.%04d' $EXP $YEAR`\n"
+                "   ./mock_model\n"
+                "   if [ -e Abort_Message ]; then exit 1; fi\n"
+                "   if [ -e plasim_diag ]; then mv plasim_diag output/$DIAGNAME; fi\n"
+                "   if [ -e plasim_output.nc ]; then\n"
+                "      mv plasim_output.nc output/$DATANAME\n"
+                "   elif [ -e plasim_output ]; then\n"
+                "      $srv2nc $average plasim_output output/$DATANAME\n"
+                "   fi\n"
+                "   if [ -e ocean_output.nc ]; then\n"
+                "      mv ocean_output.nc output/$OCENAME\n"
+                "   elif [ -e ocean_output ]; then\n"
+                "      $srv2nc $average ocean_output output/$OCENAME\n"
+                "   fi\n"
+                "   if [ -e ice_output.nc ]; then\n"
+                "      mv ice_output.nc output/$ICENAME\n"
+                "   elif [ -e ice_output ]; then\n"
+                "      $srv2nc $average ice_output output/$ICENAME\n"
+                "   fi\n"
+                "   if [ -e lsg_output.nc ]; then\n"
+                "      mv lsg_output.nc output/$LSGNAME\n"
+                "   elif [ -e lsg_output ]; then\n"
+                "      $srv2nc lsg_output output/$LSGNAME\n"
+                "   fi\n"
+                "   if [ -e plasim_status ]; then\n"
+                "      cp plasim_status plasim_restart\n"
+                "      mv plasim_status restart/$RESTNAME\n"
+                "   fi\n"
+                "done\n"
+            )
+            script_path.write_text(script_content)
+            script_path.chmod(0o755)
+
+            mock_model = work / "mock_model"
+            mock_model.write_text(
+                "#!/bin/bash\n"
+                "touch plasim_diag plasim_output.nc ocean_output.nc ice_output.nc lsg_output.nc plasim_status\n"
+            )
+            mock_model.chmod(0o755)
+
+            # Ensure script executes without invoking mock_srv2nc, moving .nc files directly
+            res = run_command([str(script_path), str(work)], cwd=work)
+            self.assertEqual(res.returncode, 0, f"NetCDF script failed: {res.stderr}")
+            self.assertTrue((work / "output" / "TEST_PLA.0001.nc").is_file())
+            self.assertTrue((work / "output" / "TEST_OCE.0001.nc").is_file())
+            self.assertTrue((work / "output" / "TEST_ICE.0001.nc").is_file())
+            self.assertTrue((work / "output" / "TEST_LSG.0001.nc").is_file())
+            self.assertTrue((work / "output" / "TEST_DIAG.0001.txt").is_file())
+            self.assertTrue((work / "restart" / "TEST_REST.0001").is_file())
+            self.assertTrue((work / "plasim_restart").is_file())
+
     def test_run_script_execution_behavior(self) -> None:
         """Verify script exit status for non-LSG success, model failure, abort, conversion, and LSG archiving."""
         with tempfile.TemporaryDirectory(prefix="plasim-runscript-test-") as tmpdir:
