@@ -88,8 +88,9 @@ For a first serial Earth experiment:
    **T21 [64x32]**, and set **Levels** to `10`.
 4. Under **Options**, enable **Double Precision** and confirm **Write Output**
    (enabled by default). To produce direct NetCDF-4 files instead of raw Service format,
-   select **NetCDF Output**. **Run with GUI** is disabled by default for headless
-   performance.
+   select **NetCDF Output** and optionally set **NetCDF Average** (`2` for monthly
+   averages by default, `1` for daily averages, or `0` for instantaneous steps).
+   **Run with GUI** is disabled by default for headless performance.
 5. Under **Simulation**, set **Start year** to `2000` and **Years to run** to
    `1`.
 6. Click **Save & Exit** to compile the model and populate `plasim/run/`
@@ -126,8 +127,8 @@ Key points for `-c` mode:
   filename argument reads `most_last_used.cfg`.
 - **Fallback warning:** If the specified `.cfg` file cannot be opened or lacks
   the `[MoSt` header, MoSt prints `Using default configuration` and falls back
-  to internal defaults (which have `Run with GUI = 0`, `Write Output = 1`, and
-  `NetCDF Output = 0`).
+  to internal defaults (which have `Run with GUI = 0`, `Write Output = 1`,
+  `NetCDF Output = 0`, and `NetCDF Average = 2`).
 
 ## Step 3: Understand the prepared `plasim/run` directory
 

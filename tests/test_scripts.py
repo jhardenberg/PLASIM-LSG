@@ -220,10 +220,13 @@ class MostRunScriptTests(unittest.TestCase):
         """Verify most.c has NetCDF Output button, correct defaults, and unified on-the-fly srv2nc checks."""
         most_c = (ROOT / "most.c").read_text()
         self.assertIn('InitNextSelection(Sel,dyn,"NetCDF Output");', most_c)
+        self.assertIn('InitNextSelection(Sel,dyn,"NetCDF Average");', most_c)
         self.assertIn('Sel->piv  = &noutput;', most_c)
         self.assertIn('Sel->piv  = &nnetcdf;', most_c)
+        self.assertIn('Sel->piv  = &noutput_avg;', most_c)
         self.assertIn('Sel->piv  = &ngui;', most_c)
         self.assertIn('fprintf(fp," %-12s=%6d\\n","NNETCDF",nnetcdf);', most_c)
+        self.assertIn('fprintf(fp," %-12s=%6d\\n","NOUTPUT_AVG",noutput_avg);', most_c)
         self.assertIn('if [ -e %s.nc ]; then', most_c)
         self.assertIn('mv %s.nc output/$DATANAME', most_c)
         self.assertIn('if [ -e ocean_output.nc ]; then', most_c)

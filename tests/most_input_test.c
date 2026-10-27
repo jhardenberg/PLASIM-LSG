@@ -56,11 +56,15 @@ int main(int argc, char **argv)
       printf("NOUTPUT=%d\n", noutput);
       printf("NGUI=%d\n", ngui);
       printf("NNETCDF=%d\n", nnetcdf);
+      printf("NOUTPUT_AVG=%d\n", noutput_avg);
       printf("SEL_NETCDF_NO=%d\n", SelNetCDF ? SelNetCDF->no : -1);
+      printf("SEL_NETCDF_AVG_NO=%d\n", SelNetCDFAvg ? SelNetCDFAvg->no : -1);
       ChangeModel(PLASIM);
       printf("PLASIM_SEL_NETCDF_NO=%d\n", SelNetCDF ? SelNetCDF->no : -1);
+      printf("PLASIM_SEL_NETCDF_AVG_NO=%d\n", SelNetCDFAvg ? SelNetCDFAvg->no : -1);
       ChangeModel(PUMA);
       printf("PUMA_SEL_NETCDF_NO=%d\n", SelNetCDF ? SelNetCDF->no : -1);
+      printf("PUMA_SEL_NETCDF_AVG_NO=%d\n", SelNetCDFAvg ? SelNetCDFAvg->no : -1);
    }
    else
    {

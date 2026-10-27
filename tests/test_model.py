@@ -953,14 +953,14 @@ class NetcdfOutputTests(unittest.TestCase):
             self.assertIn("float icec(time, lat, lon)", dump_ice)
 
     def test_monthly_netcdf_output(self) -> None:
-        """Verify direct monthly NetCDF-4 output generation with nnetcdf=1 and noutput_avg=2."""
+        """Verify direct monthly NetCDF-4 output generation with nnetcdf=1 (defaulting noutput_avg=2)."""
         if not self.has_netcdf:
             raise unittest.SkipTest("NetCDF-Fortran not available")
         run = prepare_run(self.work, "run_monthly_nc", days=0)
         (run / "plasim_namelist").write_text(
             "&plasim_nl\n"
             " n_run_years=0, n_run_months=1, n_run_days=0, n_run_steps=0, "
-            "kick=0, ngui=0, seed=1, nnetcdf=1, noutput_avg=2, ndeflate=4\n/\n",
+            "kick=0, ngui=0, seed=1, nnetcdf=1, ndeflate=4\n/\n",
             encoding="ascii",
         )
         command([str(self.exe_full)], cwd=run)

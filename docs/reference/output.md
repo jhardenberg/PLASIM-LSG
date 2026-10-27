@@ -36,11 +36,11 @@ script converts automatically via `srv2nc`.
   controlled by `ndeflate` (default `4`, range `0`–`9`). Chunking is structured per
   horizontal Gaussian slab (`NLON` × `NLAT`).
 - **Averaging & cadence**: Controlled by `noutput_avg`:
-  - `noutput_avg = 1` (default): True 24-hour daily averages across all model timesteps
+  - `noutput_avg = 2` (default): Calendar monthly averages across all model timesteps in the month.
+    In this mode, `nwpd` is ignored.
+  - `noutput_avg = 1`: True 24-hour daily averages across all model timesteps
     in each day (`ntspd` steps), integrating the diurnal cycle without midnight sampling
     bias. In this mode, `nwpd` is ignored.
-  - `noutput_avg = 2`: Calendar monthly averages across all model timesteps in the month.
-    In this mode, `nwpd` is ignored.
   - `noutput_avg = 0`: Instantaneous snapshots written at the interval governed by `nwpd`
     (`ntspd / nwpd` steps, e.g. 6-hourly with `nwpd = 4`).
 - **Spectral synthesis**: Spectral variables (temperature, divergence, vorticity, orography)

@@ -273,3 +273,18 @@ or documenting intended behavior as if it were current.
   - `tests/README.md`: Documented NetCDF test requirements and stub verification.
 - Checked `plasim/src/netcdfmod.f90`:
   - Sliced `du(:,1:NLEV)` and `dv(:,1:NLEV)` for accumulation and instantaneous output to match `NLEV` dimension of `acc_u` and `acc_v` (`du` and `dv` are allocated `NLEP` levels in `plasimmod.f90`).
+
+## NetCDF monthly average default and MoSt selector verification
+
+- Checked `plasim/src/plasimmod.f90`:
+  - Changed default of `noutput_avg` from `1` (daily average) to `2` (calendar monthly average).
+- Checked `most.c`:
+  - Added integer selection `NetCDF Average` (`noutput_avg`, default 2), active for PlaSim and hidden for other models.
+  - Added range clamping `[0, 2]` in `CheckPlasimNamelist`.
+  - Added `NOUTPUT_AVG` output to `plasim_namelist` in `WriteNamelistFile`.
+- Checked `docs/reference/parameters/plasim.md`, `docs/reference/output.md`, `docs/user/postprocessing.md`, and `docs/user/most.md`:
+  - Documented default `noutput_avg = 2` (monthly averaging) and MoSt selection option.
+- Checked tests:
+  - `tests/test_defensive.py`: Verified `NOUTPUT_AVG=2` and `SelNetCDFAvg` visibility in `test_defaults_and_netcdf_selection`.
+  - `tests/test_scripts.py`: Verified `SelNetCDFAvg` and `NOUTPUT_AVG` generation in `test_most_c_netcdf_output_and_default_directives`.
+  - `tests/test_model.py`: Verified in `test_monthly_netcdf_output` that omitting `noutput_avg` defaults to monthly averaging (`noutput_avg=2`).

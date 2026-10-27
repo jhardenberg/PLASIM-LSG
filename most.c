@@ -206,6 +206,7 @@ struct SelStruct *SelIce;
 struct SelStruct *SelAnn;
 struct SelStruct *SelPlanet[PLANETS];
 struct SelStruct *SelNetCDF;
+struct SelStruct *SelNetCDFAvg;
 struct SelStruct *SelSYear;
 struct SelStruct *SelCPU;
 struct SelStruct *SelMulti;
@@ -334,6 +335,7 @@ int SimYears;
 int nreadsr;
 int noutput = 1;
 int nnetcdf = 0;
+int noutput_avg = 2;
 int ndebug;
 int nprec;
 int ngui = 0;
@@ -612,6 +614,7 @@ void ChangeModel(int NewMo)
        SelSYear->no = 1;
        if (SelLsg) SelLsg->no   = 1;
        if (SelNetCDF) SelNetCDF->no = 1;
+       if (SelNetCDFAvg) SelNetCDFAvg->no = 1;
        for (i=0 ; i < PLANETS ; ++i) SelPlanet[i]->no = 1;
    }
    if (NewMo == PLASIM)
@@ -621,6 +624,7 @@ void ChangeModel(int NewMo)
        SelOro->no   = 1;
        SelSYear->no = 0;
        if (SelNetCDF) SelNetCDF->no = 0;
+       if (SelNetCDFAvg) SelNetCDFAvg->no = 0;
        if (Expert)
        {
           SelOce->no   = 0;
@@ -1537,6 +1541,21 @@ void InitSelections(void)
    *Sel->piv = Sel->iv;
    SelNetCDF = Sel;
 
+   // NetCDF averaging mode (0=step, 1=day, 2=month)
+
+   Sel = NewSel(Sel);
+   InitNextSelection(Sel,dyn,"NetCDF Average");
+   Sel->h    = FixFontHeight + 1;
+   Sel->yt   = Sel->y + FixFontAscent + 1;
+   Sel->w    = 4 * FixFontWidth + 2;
+   Sel->edco = 1;
+   Sel->type = SEL_INT;
+   Sel->div  = Sel->iv   =  2;
+   Sel->no   = 1;
+   Sel->piv  = &noutput_avg;
+   *Sel->piv = Sel->iv;
+   SelNetCDFAvg = Sel;
+
    // GUI
 
    Sel = NewSel(Sel);
@@ -2441,6 +2460,9 @@ int CheckPlasimNamelist(void)
       if (!strcmp(Sel->text,"Orography"   )) nreadsr  = Sel->iv;
       if (!strcmp(Sel->text,"Annual cycle")) nac      = Sel->iv;
    }
+
+   if (noutput_avg < 0) noutput_avg = 0;
+   if (noutput_avg > 2) noutput_avg = 2;
 
    // Check for resolution defines as T value
 
@@ -3523,6 +3545,7 @@ void WriteNamelistFile(char *nl,  int instance)
    {
       fprintf(fp," %-12s=%6d\n","NOUTPUT",noutput);
       fprintf(fp," %-12s=%6d\n","NNETCDF",nnetcdf);
+      fprintf(fp," %-12s=%6d\n","NOUTPUT_AVG",noutput_avg);
       fprintf(fp," %-12s=%6d\n","NGUI"  ,ngui);
       fprintf(fp," %-12s=%6d\n","N_START_YEAR",SimStart);
       if (Lsg)        fprintf(fp," %-12s=%6d\n","N_DAYS_PER_YEAR",360);
