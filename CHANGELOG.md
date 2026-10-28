@@ -6,6 +6,7 @@ Notable changes in the `master` branch are summarized here in a format inspired 
 
 - **Direct NetCDF-4 output:** Added optional direct compressed NetCDF-4 output for atmosphere, mixed-layer ocean, and sea ice (`nnetcdf=1`) with monthly, daily, or instantaneous averaging, stub fallback when NetCDF-Fortran is absent, and selection controls in `most.x` ([#83](https://github.com/jhardenberg/PLASIM-LSG/pull/83)).
 - **T63 resolution and aquaplanet support:** Added T63 resolution in MoSt, boundary scripts (`makesra`, `aqua.sh`), and the benchmark suite (aquaplanet mixed-layer), updated radiation/convection tuning, and initialized missing surface temperatures to `tgr` with a warning ([#84](https://github.com/jhardenberg/PLASIM-LSG/pull/84)).
+- **Boundary script defaults and resolution:** Added a bash shebang to `scripts/aqua.sh` and `scripts/earth.sh`, dynamically resolved the script directory while preserving `DIR` overrides, added T31 (`N048`, 96 × 48) and T63 (`N096`, 192 × 96) support across `makesra`, `aqua.sh`, and `earth.sh`, and quoted tool paths ([#85](https://github.com/jhardenberg/PLASIM-LSG/pull/85)).
 
 ## [v1.1](https://github.com/jhardenberg/PLASIM/releases/tag/v1.1) — 2026-10-23
 

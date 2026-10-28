@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import sys
@@ -10,15 +11,18 @@ import tempfile
 import unittest
 
 
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 
 
-def run_command(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def run_command(args: list[str], *, cwd: Path | None = None,
+                env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        args, cwd=cwd, text=True, stdout=subprocess.PIPE,
+        args, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, check=False,
     )
+
 
 
 class Nc2SraTests(unittest.TestCase):
@@ -204,7 +208,7 @@ class Nc2SraTests(unittest.TestCase):
 
 
 class AquaScriptTests(unittest.TestCase):
-    """Tests for makesra and aqua.sh helper scripts."""
+    """Tests for makesra, aqua.sh, and earth.sh helper scripts."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -214,27 +218,99 @@ class AquaScriptTests(unittest.TestCase):
         cls.addClassCleanup(cls.temp.cleanup)
         cls.work = Path(cls.temp.name)
 
-    def test_makesra_and_aqua_t63(self) -> None:
-        """Verify makesra and aqua.sh generate valid T63 (192x96) surface datasets."""
-        makesra = SCRIPTS / "makesra"
-        res = run_command(["bash", str(makesra), "-g", "t63", "288.0", "169"], cwd=self.work)
-        self.assertEqual(res.returncode, 0, f"makesra failed: {res.stderr}")
-        lines = res.stdout.strip().splitlines()
-        header = lines[0].split()
-        self.assertEqual(header[0], "169")
-        self.assertEqual(int(header[4]), 192)
-        self.assertEqual(int(header[5]), 96)
-
+    def test_shebang_and_direct_execution(self) -> None:
+        """Verify aqua.sh and earth.sh have bash shebangs and execute directly from any directory."""
         aqua_sh = SCRIPTS / "aqua.sh"
-        res_aqua = run_command(["bash", str(aqua_sh), "-g", "t63", "288.0", "0"], cwd=self.work)
+        earth_sh = SCRIPTS / "earth.sh"
+
+        self.assertTrue(aqua_sh.read_text().startswith("#!/bin/bash\n"))
+        self.assertTrue(earth_sh.read_text().startswith("#!/bin/bash\n"))
+
+        aqua_dir = self.work / "direct_aqua"
+        aqua_dir.mkdir()
+        res_aqua = run_command([str(aqua_sh), "288.0", "0"], cwd=aqua_dir)
         self.assertEqual(res_aqua.returncode, 0, f"aqua.sh failed: {res_aqua.stderr}")
-        for code in ("0129", "0169", "0172", "0173", "0174", "0199", "0200", "0210", "0211", "0212", "0229", "0232"):
-            sra_file = self.work / f"N096_surf_{code}.sra"
+        self.assertTrue((aqua_dir / "N032_surf_0169.sra").is_file())
+
+        earth_dir = self.work / "direct_earth"
+        earth_dir.mkdir()
+        res_earth = run_command([str(earth_sh), "288.0", "0"], cwd=earth_dir)
+        self.assertEqual(res_earth.returncode, 0, f"earth.sh failed: {res_earth.stderr}")
+        for code in ("0169", "0210", "0211"):
+            sra_file = earth_dir / f"N032_surf_{code}.sra"
             self.assertTrue(sra_file.is_file(), f"Missing {sra_file.name}")
             with sra_file.open("r", encoding="ascii") as f:
-                first_line = f.readline().split()
-            self.assertEqual(int(first_line[4]), 192)
-            self.assertEqual(int(first_line[5]), 96)
+                header = f.readline().split()
+            self.assertEqual(int(header[4]), 64)
+            self.assertEqual(int(header[5]), 32)
+
+    def test_earth_resolutions(self) -> None:
+        """Verify earth.sh supports T21 (64x32), T31 (96x48), T42 (128x64), and T63 (192x96) grids."""
+        earth_sh = SCRIPTS / "earth.sh"
+        cases = [
+            ("t21", "N032", 64, 32),
+            ("t31", "N048", 96, 48),
+            ("t42", "N064", 128, 64),
+            ("t63", "N096", 192, 96),
+        ]
+        for grid, prefix, expected_nx, expected_ny in cases:
+            with self.subTest(grid=grid):
+                grid_dir = self.work / f"earth_{grid}"
+                grid_dir.mkdir()
+                res = run_command([str(earth_sh), "-g", grid, "288.0", "0"], cwd=grid_dir)
+                self.assertEqual(res.returncode, 0, f"earth.sh -g {grid} failed: {res.stderr}")
+                for code in ("0169", "0210", "0211"):
+                    sra_file = grid_dir / f"{prefix}_surf_{code}.sra"
+                    self.assertTrue(sra_file.is_file(), f"Missing {sra_file.name}")
+                    with sra_file.open("r", encoding="ascii") as f:
+                        header = f.readline().split()
+                    self.assertEqual(int(header[4]), expected_nx)
+                    self.assertEqual(int(header[5]), expected_ny)
+
+    def test_makesra_and_aqua_resolutions(self) -> None:
+        """Verify makesra and aqua.sh generate valid T31 (96x48) and T63 (192x96) surface datasets."""
+        makesra = SCRIPTS / "makesra"
+        aqua_sh = SCRIPTS / "aqua.sh"
+        for grid, prefix, nx, ny in [("t31", "N048", 96, 48), ("t63", "N096", 192, 96)]:
+            with self.subTest(grid=grid):
+                res = run_command(["bash", str(makesra), "-g", grid, "288.0", "169"], cwd=self.work)
+                self.assertEqual(res.returncode, 0, f"makesra failed: {res.stderr}")
+                lines = res.stdout.strip().splitlines()
+                header = lines[0].split()
+                self.assertEqual(header[0], "169")
+                self.assertEqual(int(header[4]), nx)
+                self.assertEqual(int(header[5]), ny)
+
+                aqua_dir = self.work / f"aqua_{grid}"
+                aqua_dir.mkdir()
+                res_aqua = run_command(["bash", str(aqua_sh), "-g", grid, "288.0", "0"], cwd=aqua_dir)
+                self.assertEqual(res_aqua.returncode, 0, f"aqua.sh failed: {res_aqua.stderr}")
+                for code in ("0129", "0169", "0172", "0173", "0174", "0199", "0200", "0210", "0211", "0212", "0229", "0232"):
+                    sra_file = aqua_dir / f"{prefix}_surf_{code}.sra"
+                    self.assertTrue(sra_file.is_file(), f"Missing {sra_file.name}")
+                    with sra_file.open("r", encoding="ascii") as f:
+                        first_line = f.readline().split()
+                    self.assertEqual(int(first_line[4]), nx)
+                    self.assertEqual(int(first_line[5]), ny)
+
+    def test_dir_environment_override(self) -> None:
+        """Verify aqua.sh and earth.sh respect DIR environment override when provided."""
+        mock_dir = self.work / "mock_scripts"
+        mock_dir.mkdir()
+        mock_makesra = mock_dir / "makesra"
+        mock_makesra.write_text("#!/bin/bash\necho 'MOCK_MAKESRA'\n")
+        mock_makesra.chmod(0o755)
+
+        run_dir = self.work / "override_test"
+        run_dir.mkdir()
+
+        env = dict(os.environ, DIR=str(mock_dir))
+        res = run_command([str(SCRIPTS / "earth.sh"), "288.0", "0"], cwd=run_dir, env=env)
+        self.assertEqual(res.returncode, 0)
+        sra_file = run_dir / "N032_surf_0169.sra"
+        self.assertTrue(sra_file.is_file())
+        self.assertEqual(sra_file.read_text().strip(), "MOCK_MAKESRA")
+
 
 
 class MostRunScriptTests(unittest.TestCase):
