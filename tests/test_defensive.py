@@ -108,6 +108,27 @@ class MostInputTests(unittest.TestCase):
         self.assertIn("PUMA_SEL_NETCDF_NO=1", result.stdout)
         self.assertIn("PUMA_SEL_NETCDF_AVG_NO=1", result.stdout)
 
+    def test_resolution_options_and_t63_selection(self):
+        """Verify T21, T31, T42, and T63 options, ChangeResolution(T63), and config file loading."""
+        result = self.run_reader("resolutions", "0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("RES_1=T21   [64x32]:1", result.stdout)
+        self.assertIn("RES_2=T31   [96x48]:0", result.stdout)
+        self.assertIn("RES_3=T42  [128x64]:0", result.stdout)
+        self.assertIn("RES_4=T63  [192x96]:0", result.stdout)
+        self.assertIn("AFTER_CHANGE_RES=4", result.stdout)
+        self.assertIn("AFTER_RES_1=T21   [64x32]:0", result.stdout)
+        self.assertIn("AFTER_RES_4=T63  [192x96]:1", result.stdout)
+        self.assertIn("LATITUDES=96", result.stdout)
+        self.assertIn("CAT_RES_4_NO=1", result.stdout)
+
+        cfg_path = self.work / "t63_test.cfg"
+        cfg_path.write_text("[MoSt 17 - configuration file]\nPlanet Simulator = 1\nT21   [64x32] = 0\nT63  [192x96] = 1\n", encoding="ascii")
+        result = self.run_reader("config_t63", cfg_path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("CFG_RESOLUTION=4", result.stdout)
+        self.assertIn("CFG_LATITUDES=96", result.stdout)
+
     def test_grid_valid_and_malformed(self):
         path = self.work / "grid.sra"
         header = "".join(f"{n:10d}" for n in (129, 0, 0, 0, 8, 4, 0, 0)) + "\n"

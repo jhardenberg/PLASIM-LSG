@@ -218,6 +218,7 @@ struct SelStruct *SelLat2;
 char *DimText1;
 char *DimText2;
 char *DimText3;
+char *DimText4;
 
 #define DIMLOGO 4
 
@@ -653,12 +654,17 @@ void ChangeModel(int NewMo)
          strcpy(DimText1,"[  64 x 64  ]");
          strcpy(DimText2,"[ 256 x 256 ]");
          strcpy(DimText3,"[1024 x 1024]");
+         if (SelRes && SelRes->Next && SelRes->Next->Next && SelRes->Next->Next->Next)
+            SelRes->Next->Next->Next->no = 1;
       }
       else
       {
          strcpy(DimText1,"T21   [64x32]");
          strcpy(DimText2,"T31   [96x48]");
          strcpy(DimText3,"T42  [128x64]");
+         strcpy(DimText4,"T63  [192x96]");
+         if (SelRes && SelRes->Next && SelRes->Next->Next && SelRes->Next->Next->Next)
+            SelRes->Next->Next->Next->no = 0;
       }
    }
    Model = NewMo;
@@ -1476,6 +1482,14 @@ void InitSelections(void)
       Sel->w    = FixFontHeight + 1;
       Sel->div  = Sel->iv   =  0;
       DimText3  = Sel->text;
+
+      Sel = NewSel(Sel);
+      InitNextSelection(Sel,dyn,"T63  [192x96]");
+      Sel->type = SEL_CHECK;
+      Sel->h    = FixFontHeight + 1;
+      Sel->w    = FixFontHeight + 1;
+      Sel->div  = Sel->iv   =  0;
+      DimText4  = Sel->text;
    }
 
    // Vertical resolution
@@ -2205,11 +2219,11 @@ int Build(int model)
    if (model == PLASIM)
    {
       if (Planet == MARS)
-         sprintf(command,"cp plasim/dat/T%d_mars/* plasim/run/\n",Truncation);
+         sprintf(command,"[ -d plasim/dat/T%d_mars ] && cp plasim/dat/T%d_mars/* plasim/run/\n",Truncation,Truncation);
       else if (Planet == EXO)
-         sprintf(command,"cp plasim/dat/T%d_exo/* plasim/run/\n",Truncation);
+         sprintf(command,"[ -d plasim/dat/T%d_exo ] && cp plasim/dat/T%d_exo/* plasim/run/\n",Truncation,Truncation);
       else
-         sprintf(command,"cp plasim/dat/T%d/* plasim/run/\n",Truncation);
+         sprintf(command,"[ -d plasim/dat/T%d ] && cp plasim/dat/T%d/* plasim/run/\n",Truncation,Truncation);
       system(command);
 
       if (Lsg) // copy data for LSG ocean model and select LSG GUI configuration
@@ -4495,7 +4509,7 @@ void ChangeResolution(int NewRes)
    int i;
    struct SelStruct *Sel;
 
-   for (i=RES_T21 , Sel = SelRes ; i <= RES_T42; ++i , Sel = Sel->Next)
+   for (i=RES_T21 , Sel = SelRes ; i <= RES_T63; ++i , Sel = Sel->Next)
    {
       if (i == NewRes) Sel->iv = 1;
       else             Sel->iv = 0;
@@ -4510,7 +4524,7 @@ void UpdateResolution(void)
    struct SelStruct *Sel;
 
    if (SelRes)
-   for (i=RES_T21 , Sel = SelRes ; i <= RES_T42; ++i , Sel = Sel->Next)
+   for (i=RES_T21 , Sel = SelRes ; i <= RES_T63; ++i , Sel = Sel->Next)
    {
       if (Sel && Sel->iv == 1) Resolution = i;
    }
@@ -4890,7 +4904,7 @@ void OnMouseClick(void)
 
    if (SelRes)
    {
-      for (i = RES_T21 , Sel = SelRes ; i <= RES_T42 ; ++i , Sel = Sel->Next)
+      for (i = RES_T21 , Sel = SelRes ; i <= RES_T63 ; ++i , Sel = Sel->Next)
       if (HitBox(Sel))
       {
          ChangeResolution(i);

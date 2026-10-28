@@ -17,8 +17,8 @@ display.
 
 ## Atmospheric timestep and LSG exchange defaults
 
-MoSt and direct model initialization use the same T21/T31/T42 defaults:
-45/30/20 minutes. In the ocean namelist, MoSt writes `NAOMOD=0` to request
+MoSt and direct model initialization use the same T21/T31/T42/T63 defaults:
+45/30/20/15 minutes. In the ocean namelist, MoSt writes `NAOMOD=0` to request
 automatic ten-day LSG exchanges based on the model's effective timestep.
 See {doc}`parallel-ocean` for resolved step counts, explicit overrides,
 validation, and migration of existing experiments.
@@ -85,7 +85,7 @@ For a first serial Earth experiment:
 2. Under **Modules**, enable **ML Ocean** and **Sea Ice**; leave **LSG Ocean**
    off.
 3. Under **Parallelism** and **Resolution**, set **Cores** to `1`, select
-   **T21 [64x32]**, and set **Levels** to `10`.
+   **T21 [64x32]** (or **T31 [96x48]**, **T42 [128x64]**, **T63 [192x96]**), and set **Levels** to `10`.
 4. Under **Options**, enable **Double Precision** and confirm **Write Output**
    (enabled by default). To produce direct NetCDF-4 files instead of raw Service format,
    select **NetCDF Output** and optionally set **NetCDF Average** (`2` for monthly

@@ -66,6 +66,39 @@ int main(int argc, char **argv)
       printf("PUMA_SEL_NETCDF_NO=%d\n", SelNetCDF ? SelNetCDF->no : -1);
       printf("PUMA_SEL_NETCDF_AVG_NO=%d\n", SelNetCDFAvg ? SelNetCDFAvg->no : -1);
    }
+   else if (!strcmp(argv[1], "resolutions"))
+   {
+      struct SelStruct *Sel;
+      InitSelections();
+      ChangeModel(PLASIM);
+      for (i = RES_T21, Sel = SelRes; i <= RES_T63; ++i, Sel = Sel->Next)
+      {
+         printf("RES_%d=%s:%d\n", i, Sel->text, Sel->iv);
+      }
+      ChangeResolution(RES_T63);
+      printf("AFTER_CHANGE_RES=%d\n", Resolution);
+      for (i = RES_T21, Sel = SelRes; i <= RES_T63; ++i, Sel = Sel->Next)
+      {
+         printf("AFTER_RES_%d=%s:%d\n", i, Sel->text, Sel->iv);
+      }
+      CheckPlasimNamelist();
+      printf("LATITUDES=%d\n", Latitudes);
+      ChangeModel(CAT);
+      for (i = RES_T21, Sel = SelRes; i <= RES_T63; ++i, Sel = Sel->Next)
+      {
+         printf("CAT_RES_%d_NO=%d\n", i, Sel->no);
+      }
+   }
+   else if (!strcmp(argv[1], "config_t63"))
+   {
+      InitSelections();
+      ChangeModel(PLASIM);
+      ReadSettings(argv[2]);
+      UpdateResolution();
+      CheckPlasimNamelist();
+      printf("CFG_RESOLUTION=%d\n", Resolution);
+      printf("CFG_LATITUDES=%d\n", Latitudes);
+   }
    else
    {
       int latitudes = !strcmp(argv[1], "reference32") ? 32 :
