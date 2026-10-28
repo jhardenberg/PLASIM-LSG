@@ -48,8 +48,8 @@
 
       parameter(NLAT = NLAT_ATM)                !  Number of latitudes
 
-!     currently allowed values:  2,  4,  32,  48,  64, 128,  192,  256
-!     corresponding truncation: T1, T2, T21, T31, T42, T85, T127, T170
+!     currently allowed values:  2,  4,  32,  48,  64,  96, 128,  192,  256
+!     corresponding truncation: T1, T2, T21, T31, T42, T63, T85, T127, T170
 
 !     ****************************************************************
 !     * Set the vertical resolution, a minimum of 5 is recommended   *

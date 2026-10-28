@@ -680,6 +680,24 @@
           endif
          endif
         endif
+       elseif(NTRU==63) then
+!       Note: T63 parameters below are an initial guess (inherited from T42 L10)
+!       and have not been properly tuned for climate balance at this resolution.
+        if(NLEV>=10) then
+         if(NDCYCLE==1) then
+          jtune=0
+         else
+          if(NEQSIG==1) then
+           jtune=0
+          else
+           tswr1=0.089
+           tswr2=0.06
+           tswr3=0.0048
+           th2oc=0.0285
+           jtune=1
+          endif
+         endif
+        endif
        endif
       endif
 !

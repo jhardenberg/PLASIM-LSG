@@ -2119,7 +2119,7 @@ int Build(int model)
       putenv("OCEAN=lsgmod_stub");
       putenv("OCEANCOUP=cpl_stub");
    }
-   if (Latitudes < 4) putenv("FFTMOD=fft991mod");
+   if (Latitudes < 4 || Latitudes == 96 || Latitudes == 160) putenv("FFTMOD=fft991mod");
    if (model == PLASIM)
    {
       if (nnetcdf)
@@ -2478,7 +2478,8 @@ int CheckPlasimNamelist(void)
 
    // Check # of latitudes for correct values (FFT requirements)
 
-        if (Latitudes >=  64) Latitudes =  64; // T42
+        if (Latitudes >=  96) Latitudes =  96; // T63
+   else if (Latitudes >=  64) Latitudes =  64; // T42
    else if (Latitudes >=  48) Latitudes =  48; // T31
    else if (Latitudes >=  32) Latitudes =  32; // T21
    else if (Latitudes >=   4) Latitudes =   4; // T2

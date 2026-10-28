@@ -100,6 +100,7 @@ def build_model(
     shutil.copy2(build / "make_plasim", build / "makefile")
 
     env = os.environ.copy()
+    fftmod = "fft991mod" if latitudes in (96, 160) or latitudes < 4 else "fftmod"
     env.update({
         "MOST_CC": "cc", "MOST_CC_OPTS": "-O0",
         "MOST_F90": compiler, "MOST_F90_OPTS": fflags,
@@ -133,8 +134,10 @@ def prepare_run(work: Path, name: str, *, days: int, steps: int = 0,
                 resolution: str = "T21") -> Path:
     run = work / name
     run.mkdir()
-    for source in (ROOT / "plasim/dat" / resolution).iterdir():
-        shutil.copy2(source, run / source.name)
+    res_dir = ROOT / "plasim/dat" / resolution
+    if res_dir.exists():
+        for source in res_dir.iterdir():
+            shutil.copy2(source, run / source.name)
     for module in NAMELISTS:
         (run / f"{module}_namelist").write_text(
             f"&{module}_nl\n/\n", encoding="ascii"
@@ -486,6 +489,40 @@ class PlaSimTests(unittest.TestCase):
             with self.subTest(field=field):
                 values = doubles(state[field])
                 self.assertTrue(all(map(math.isfinite, values)))
+
+    def test_t63_aquaplanet_execution(self) -> None:
+        """Verify T63 compiles with fft991mod, runs in aquaplanet mode, and warns about missing SST."""
+        t63_build = self.work / "build_t63"
+        t63_exe = build_model(t63_build, latitudes=96)
+        t63_run = prepare_run(self.work, "t63_aquaplanet", days=0, steps=2, resolution="T63")
+        (t63_run / "plasim_namelist").write_text(
+            "&plasim_nl\n"
+            " n_run_years=0, n_run_months=0, n_run_days=0, n_run_steps=2,\n"
+            " naqua=1, kick=0, ngui=0, seed=1\n/\n", encoding="ascii"
+        )
+        run_model(t63_exe, t63_run)
+        diag = (t63_run / "plasim_diag").read_text()
+        self.assertIn("Truncation   NTRU :   63", diag)
+        self.assertIn("Latitudes    NLAT :   96", diag)
+        self.assertIn("Longitudes   NLON :  192", diag)
+        self.assertIn("WARNING: Surface temperature file <N096_surf_0169.sra> is missing", diag)
+        self.assertIn("Climatological surface temperature initialized to tgr =", diag)
+        self.assertNotIn("No radiation setup for this resolution", diag)
+
+        state = records(t63_run / "plasim_status")
+        self.assertEqual(struct.unpack("=i", state["nlat"])[0], 96)
+        self.assertEqual(struct.unpack("=i", state["nlon"])[0], 192)
+        self.assertEqual(struct.unpack("=i", state["nrsp"])[0], 4160)
+        for field in ("dt", "dq", "st", "sp", "sz", "sd"):
+            values = doubles(state[field])
+            self.assertTrue(all(map(math.isfinite, values)), f"NaN/Inf found in {field}")
+
+        if "ysst" in state:
+            ysst_vals = doubles(state["ysst"])
+            self.assertTrue(all(abs(v - 288.0) < 1.0 for v in ysst_vals), f"ysst not initialized to tgr: {ysst_vals[:5]}")
+        if "yclsst" in state:
+            yclsst_vals = doubles(state["yclsst"])
+            self.assertTrue(all(abs(v - 288.0) < 1.0 for v in yclsst_vals), f"yclsst not initialized to tgr: {yclsst_vals[:5]}")
 
     def test_unified_convection_schemes(self) -> None:
         """Verify unified convection schemes run 1 day and produce finite states."""

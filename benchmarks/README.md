@@ -17,10 +17,13 @@ The default matrix includes **all four serial T21/L10 and T42/L10 cases**:
 | `mixed` | Classic broadband | Mixed layer, without LSG |
 | `lsg` | Classic broadband | Real coupled LSG |
 
-T31/L10 (96 × 48 grid points) is also available through `--resolutions T31`.
-Select any combination with `--resolutions T21 T31 T42`; omitting the option
-keeps the T21/T42 default matrix. T31 supports power-of-two rank counts up
-to 16 because each rank count must divide its 48 latitudes.
+T31/L10 (96 × 48 grid points) and T63/L10 (192 × 96 grid points) are also available
+through `--resolutions T31` and `--resolutions T63`. Select any combination with
+`--resolutions`; omitting the option keeps the T21/T42 default matrix. T31 supports
+power-of-two rank counts up to 16 (dividing 48 latitudes); T63 supports rank counts
+up to 32 (dividing 96 latitudes). T63 benchmarks run in aquaplanet mode (`naqua=1`),
+so atmospheric boundary data are not needed, and are limited to the mixed-layer case
+(LSG is not supported at T63).
 
 Each selected rank count runs the selected configurations with classic broadband
 radiation (`nstartemp=0`). Only `mixed` and `lsg` are accepted by `--cases`.
@@ -30,7 +33,8 @@ requires the original case selection and runtime settings to match. The
 comparison tool retains its checks of runner versions when combining old
 and new result files.
 
-All three resolutions use their checked-in atmospheric boundary data. Coupled
+All three climatological resolutions (T21, T31, T42) use their checked-in atmospheric
+boundary data; T63 runs in aquaplanet mode without boundary files. Coupled
 runs also use the real `lsg/src/lsgmod.f90`, `plasim/src/cpl.f90`, and `lsg/dat`
 inputs. T21 therefore uses the LSG-supplied T21 land mask, as MoSt does;
 T31 and T42 use their native atmospheric land masks because no replacement
@@ -41,7 +45,7 @@ initial states.
 
 The protocol fixes Earth, ten atmosphere levels, a 360-day year, start date
 1-Jan-0001, `seed=1`, `kick=0`, and disabled cloud-forcing diagnostics. T21 has
-32 atmosphere steps/day; T31 has 48; T42 has 72 (45/30/20 minutes). Other physics settings retain
+32 atmosphere steps/day; T31 has 48; T42 has 72; T63 has 96 (45/30/20/15 minutes). Other physics settings retain
 source defaults. The runner writes `NTSPD` explicitly to retain the MoSt
 timesteps across source revisions, including older automatic defaults.
 Historical runs at 40 T31 or 48 T42 steps/day represent different workloads;

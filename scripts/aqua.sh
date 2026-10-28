@@ -1,4 +1,4 @@
-DIR=/work/users/jost/plasim/src/scripts/
+DIR="$(cd "$(dirname "$0")" && pwd)"
 # Script to create boundary conditions for an acquaplanet
 
 function help {
@@ -9,7 +9,7 @@ function help {
   echo "   eq   : equatorial continent (set to const) up to latitude lat"
   echo ""
   echo "Options:"
-  echo "  -g grid       grid (t21/t42, default t21)"
+  echo "  -g grid       grid (t21/t42/t63, default t21)"
   echo "  -h            print this help"
   exit 1
 }
@@ -37,7 +37,9 @@ else
    CONT=""
 fi
 
-if [ "$grid" = "t42" ] || [ "$grid" = "T42" ]; then
+if [ "$grid" = "t63" ] || [ "$grid" = "T63" ]; then
+   tres="N096"
+elif [ "$grid" = "t42" ] || [ "$grid" = "T42" ]; then
    tres="N064"
 else
    tres="N032"

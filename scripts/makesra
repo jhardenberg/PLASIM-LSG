@@ -7,7 +7,7 @@ function help {
   echo "   code  : the code of the variable"
   echo "Options:"
   echo "  -m months     months to create (default 1)"
-  echo "  -g grid       grid (t21/t42, default t21)"
+  echo "  -g grid       grid (t21/t42/t63, default t21)"
   echo "  -d date       date as YYYYMMDD (default 20200101)"
   echo "  -t time       time as HHMM (default 0000)"
   echo "  -p lat        polar continent (set to const) up to latitude lat"
@@ -42,7 +42,11 @@ if [ $# -lt 2 ]; then
    help
 fi
 
-if [ "$grid" = "t42" ] || [ "$grid" = "T42" ]; then
+if [ "$grid" = "t63" ] || [ "$grid" = "T63" ]; then
+   gr=r192x96
+   nx=192
+   ny=96
+elif [ "$grid" = "t42" ] || [ "$grid" = "T42" ]; then
    gr=r128x64
    nx=128
    ny=64

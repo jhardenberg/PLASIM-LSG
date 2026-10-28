@@ -104,6 +104,7 @@
       character (len=18) :: yf ! filename
       character (len=16) :: yc ! formatted array name
       logical :: lex           ! exists
+      logical, save :: warned_169 = .false.
 
       kread = 0 ! Initialize as "not read"
       icode = 0
@@ -168,6 +169,18 @@
          endif
       else
          write(nud,'(" * Init ",A10," [code =",I4,"] internally *")') yc,icode
+         if (icode == 169) then
+            pa(:,:) = tgr
+            kread = 1
+            if (.not. warned_169) then
+               warned_169 = .true.
+               write(nud,'(/,"*******************************************************************************")')
+               write(nud,'("* WARNING: Surface temperature file <",A,"> is missing! *")') trim(yf)
+               write(nud,'("* Climatological surface temperature initialized to tgr =",F7.2," K.            *")') tgr
+               write(nud,'("* Provide an SST boundary file or use aqua.sh to set desired temperatures.    *")')
+               write(nud,'("*******************************************************************************",/)')
+            endif
+         endif
       endif
       return
       end subroutine get_surf_array

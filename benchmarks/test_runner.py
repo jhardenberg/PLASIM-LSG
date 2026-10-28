@@ -48,8 +48,9 @@ class BenchmarkMatrixTests(unittest.TestCase):
                         target = directory / f'{case}-{coupling_days}'
                         configs = run.prepare(args, target, 'T31', case)
                         mask = 'N048_surf_0172.sra'
+                        expected_dir = run.ROOT / 'lsg/dat' if case == 'lsg' else run.ROOT / 'plasim/dat/T31'
                         self.assertEqual((target / mask).read_bytes(),
-                                         (run.ROOT / 'plasim/dat/T31' / mask).read_bytes())
+                                         (expected_dir / mask).read_bytes())
                         self.assertRegex(configs['radmod_namelist'], r'\bnstartemp=0\b')
                         if case == 'lsg':
                             self.assertRegex(configs['oceanmod_namelist'],
@@ -88,6 +89,44 @@ class BenchmarkMatrixTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             rows = compare.summary(report)
         self.assertEqual(rows[0]['name'], 'T21-mixed-spectral-p1')
+
+    def test_t63_selection_aquaplanet_and_no_lsg(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                args = run.arguments(['--output', str(directory / 'out'),
+                                      '--resolutions', 'T63', '--no-configure'])
+            self.assertEqual(args.resolutions, ['T63'])
+            warning_text = stderr.getvalue()
+            self.assertIn("aquaplanet mode", warning_text)
+            self.assertIn("LSG is omitted for T63", warning_text)
+
+            target = directory / 'T63-mixed'
+            configs = run.prepare(args, target, 'T63', 'mixed')
+            self.assertRegex(configs['plasim_namelist'], r'\bnaqua=1\b')
+            self.assertRegex(configs['plasim_namelist'], r'\bntspd=96\b')
+            self.assertEqual(run.cases_for_resolution('T63', ['mixed', 'lsg']), ['mixed'])
+
+    def test_t63_lsg_case_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as caught:
+                    run.arguments(['--output', str(Path(directory) / 'out'),
+                                  '--resolutions', 'T63', '--cases', 'lsg', '--no-configure'])
+            self.assertEqual(caught.exception.code, 2)
+
+    def test_t63_mpi_rank_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            argv = ['--output', str(Path(directory) / 'out'), '--resolutions', 'T63',
+                    '--max-cores', '64', '--no-configure']
+            with contextlib.redirect_stderr(io.StringIO()):
+                args = run.arguments(argv + ['--ranks', '1', '2', '4', '8', '16', '32'])
+            self.assertEqual(args.ranks, [1, 2, 4, 8, 16, 32])
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as caught:
+                    run.arguments(argv + ['--ranks', '64'])
+            self.assertEqual(caught.exception.code, 2)
 
 
 class SchedulerTests(unittest.TestCase):

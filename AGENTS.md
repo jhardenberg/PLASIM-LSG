@@ -150,7 +150,9 @@ Report any checks that could not be completed and why.
 - Add entries under the current planned or unreleased version identified in
   `CHANGELOG.md`. Preserve released history except to correct factual errors.
   Describe the user-visible result and any compatibility implications, and
-  link the PR when its number is available.
+  link the PR when its number is available. Keep changelog entries short and
+  simple (typically 1 to 2 lines per bullet); avoid long narrative paragraphs
+  and leave detailed rationale to PR descriptions and commit messages.
 - Verify exact tag names and release boundaries before editing version labels
   or comparison links. Do not create a release, tag, or version bump unless
   requested. For a purely editorial correction, fix the existing text rather

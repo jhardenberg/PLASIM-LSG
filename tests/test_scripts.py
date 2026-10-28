@@ -203,6 +203,40 @@ class Nc2SraTests(unittest.TestCase):
         self.assertLess(max_diff, 1e-5)
 
 
+class AquaScriptTests(unittest.TestCase):
+    """Tests for makesra and aqua.sh helper scripts."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        if shutil.which("cdo") is None:
+            raise unittest.SkipTest("cdo is required for makesra/aqua.sh tests")
+        cls.temp = tempfile.TemporaryDirectory(prefix="plasim-aqua-tests-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.work = Path(cls.temp.name)
+
+    def test_makesra_and_aqua_t63(self) -> None:
+        """Verify makesra and aqua.sh generate valid T63 (192x96) surface datasets."""
+        makesra = SCRIPTS / "makesra"
+        res = run_command(["bash", str(makesra), "-g", "t63", "288.0", "169"], cwd=self.work)
+        self.assertEqual(res.returncode, 0, f"makesra failed: {res.stderr}")
+        lines = res.stdout.strip().splitlines()
+        header = lines[0].split()
+        self.assertEqual(header[0], "169")
+        self.assertEqual(int(header[4]), 192)
+        self.assertEqual(int(header[5]), 96)
+
+        aqua_sh = SCRIPTS / "aqua.sh"
+        res_aqua = run_command(["bash", str(aqua_sh), "-g", "t63", "288.0", "0"], cwd=self.work)
+        self.assertEqual(res_aqua.returncode, 0, f"aqua.sh failed: {res_aqua.stderr}")
+        for code in ("0129", "0169", "0172", "0173", "0174", "0199", "0200", "0210", "0211", "0212", "0229", "0232"):
+            sra_file = self.work / f"N096_surf_{code}.sra"
+            self.assertTrue(sra_file.is_file(), f"Missing {sra_file.name}")
+            with sra_file.open("r", encoding="ascii") as f:
+                first_line = f.readline().split()
+            self.assertEqual(int(first_line[4]), 192)
+            self.assertEqual(int(first_line[5]), 96)
+
+
 class MostRunScriptTests(unittest.TestCase):
     """Regression tests for MoSt generated run script (issue #52)."""
 
