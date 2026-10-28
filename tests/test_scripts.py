@@ -351,6 +351,8 @@ class MostRunScriptTests(unittest.TestCase):
         self.assertIn('strcpy(DimText4,"T63  [192x96]");', most_c)
         self.assertIn('for (i=RES_T21 , Sel = SelRes ; i <= RES_T63; ++i , Sel = Sel->Next)', most_c)
         self.assertIn('for (i = RES_T21 , Sel = SelRes ; i <= RES_T63 ; ++i , Sel = Sel->Next)', most_c)
+        self.assertIn('fputs("export FFTMOD=fft991mod\\n",fp);', most_c)
+        self.assertIn('putenv("FFTMOD=fft991mod");', most_c)
 
         example_cfg = (ROOT / "docs" / "examples" / "most-earth.cfg").read_text()
         self.assertIn("T63  [192x96] = 0", example_cfg)

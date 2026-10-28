@@ -2133,7 +2133,16 @@ int Build(int model)
       putenv("OCEAN=lsgmod_stub");
       putenv("OCEANCOUP=cpl_stub");
    }
-   if (Latitudes < 4 || Latitudes == 96 || Latitudes == 160) putenv("FFTMOD=fft991mod");
+   if (Latitudes < 4 || Latitudes == 96 || Latitudes == 160)
+   {
+      fputs("export FFTMOD=fft991mod\n",fp);
+      putenv("FFTMOD=fft991mod");
+   }
+   else
+   {
+      fputs("export FFTMOD=fftmod\n",fp);
+      putenv("FFTMOD=fftmod");
+   }
    if (model == PLASIM)
    {
       if (nnetcdf)
