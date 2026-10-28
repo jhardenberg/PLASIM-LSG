@@ -1,4 +1,5 @@
-DIR="$(cd "$(dirname "$0")" && pwd)"
+#!/bin/bash
+DIR=${DIR:-"$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"}
 # Script to create boundary conditions for an acquaplanet
 
 function help {
@@ -45,16 +46,15 @@ else
    tres="N032"
 fi
 
-$DIR/makesra -g $grid 9.80665 129  > ${tres}_surf_0129.sra # surface geopotential
-$DIR/makesra -g $grid -m 14 $temp 169  > ${tres}_surf_0169.sra # surface temperature
-$DIR/makesra -g $grid $CONT 0. 172  > ${tres}_surf_0172.sra # lsm
-$DIR/makesra -g $grid 2.0 173 > ${tres}_surf_0173.sra # lsm DZ0LAND=2.0 in land_namelist
-$DIR/makesra -g $grid -m 14 0.17 174  > ${tres}_surf_0174.sra # background albedo ALBLAND in land_namelist
-$DIR/makesra -g $grid 0.36 199  > ${tres}_surf_0199.sra # forest cover
-$DIR/makesra -g $grid 2.0 200  > ${tres}_surf_0200.sra # vegetation cover
-$DIR/makesra -g $grid -m 14 $sic 210  > ${tres}_surf_0210.sra # sea-ice cover
-$DIR/makesra -g $grid -m 14 $sic 211  > ${tres}_surf_0211.sra # sea-ice thickness
-$DIR/makesra -g $grid 0.28 212  > ${tres}_surf_0212.sra # forest cover
-$DIR/makesra -g $grid 0.5 229  > ${tres}_surf_0229.sra # bucket size WSMAX=0.5 in land_namelist
-$DIR/makesra -g $grid 0. 232  > ${tres}_surf_0232.sra # lsm DZGLAC=-1 in land_namelist
-
+"$DIR/makesra" -g $grid 9.80665 129  > ${tres}_surf_0129.sra # surface geopotential
+"$DIR/makesra" -g $grid -m 14 $temp 169  > ${tres}_surf_0169.sra # surface temperature
+"$DIR/makesra" -g $grid $CONT 0. 172  > ${tres}_surf_0172.sra # lsm
+"$DIR/makesra" -g $grid 2.0 173 > ${tres}_surf_0173.sra # lsm DZ0LAND=2.0 in land_namelist
+"$DIR/makesra" -g $grid -m 14 0.17 174  > ${tres}_surf_0174.sra # background albedo ALBLAND in land_namelist
+"$DIR/makesra" -g $grid 0.36 199  > ${tres}_surf_0199.sra # forest cover
+"$DIR/makesra" -g $grid 2.0 200  > ${tres}_surf_0200.sra # vegetation cover
+"$DIR/makesra" -g $grid -m 14 $sic 210  > ${tres}_surf_0210.sra # sea-ice cover
+"$DIR/makesra" -g $grid -m 14 $sic 211  > ${tres}_surf_0211.sra # sea-ice thickness
+"$DIR/makesra" -g $grid 0.28 212  > ${tres}_surf_0212.sra # forest cover
+"$DIR/makesra" -g $grid 0.5 229  > ${tres}_surf_0229.sra # bucket size WSMAX=0.5 in land_namelist
+"$DIR/makesra" -g $grid 0. 232  > ${tres}_surf_0232.sra # lsm DZGLAC=-1 in land_namelist
