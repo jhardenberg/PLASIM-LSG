@@ -245,10 +245,11 @@ class AquaScriptTests(unittest.TestCase):
             self.assertEqual(int(header[5]), 32)
 
     def test_earth_resolutions(self) -> None:
-        """Verify earth.sh supports T21 (64x32), T42 (128x64), and T63 (192x96) grids."""
+        """Verify earth.sh supports T21 (64x32), T31 (96x48), T42 (128x64), and T63 (192x96) grids."""
         earth_sh = SCRIPTS / "earth.sh"
         cases = [
             ("t21", "N032", 64, 32),
+            ("t31", "N048", 96, 48),
             ("t42", "N064", 128, 64),
             ("t63", "N096", 192, 96),
         ]
@@ -266,27 +267,31 @@ class AquaScriptTests(unittest.TestCase):
                     self.assertEqual(int(header[4]), expected_nx)
                     self.assertEqual(int(header[5]), expected_ny)
 
-    def test_makesra_and_aqua_t63(self) -> None:
-        """Verify makesra and aqua.sh generate valid T63 (192x96) surface datasets."""
+    def test_makesra_and_aqua_resolutions(self) -> None:
+        """Verify makesra and aqua.sh generate valid T31 (96x48) and T63 (192x96) surface datasets."""
         makesra = SCRIPTS / "makesra"
-        res = run_command(["bash", str(makesra), "-g", "t63", "288.0", "169"], cwd=self.work)
-        self.assertEqual(res.returncode, 0, f"makesra failed: {res.stderr}")
-        lines = res.stdout.strip().splitlines()
-        header = lines[0].split()
-        self.assertEqual(header[0], "169")
-        self.assertEqual(int(header[4]), 192)
-        self.assertEqual(int(header[5]), 96)
-
         aqua_sh = SCRIPTS / "aqua.sh"
-        res_aqua = run_command(["bash", str(aqua_sh), "-g", "t63", "288.0", "0"], cwd=self.work)
-        self.assertEqual(res_aqua.returncode, 0, f"aqua.sh failed: {res_aqua.stderr}")
-        for code in ("0129", "0169", "0172", "0173", "0174", "0199", "0200", "0210", "0211", "0212", "0229", "0232"):
-            sra_file = self.work / f"N096_surf_{code}.sra"
-            self.assertTrue(sra_file.is_file(), f"Missing {sra_file.name}")
-            with sra_file.open("r", encoding="ascii") as f:
-                first_line = f.readline().split()
-            self.assertEqual(int(first_line[4]), 192)
-            self.assertEqual(int(first_line[5]), 96)
+        for grid, prefix, nx, ny in [("t31", "N048", 96, 48), ("t63", "N096", 192, 96)]:
+            with self.subTest(grid=grid):
+                res = run_command(["bash", str(makesra), "-g", grid, "288.0", "169"], cwd=self.work)
+                self.assertEqual(res.returncode, 0, f"makesra failed: {res.stderr}")
+                lines = res.stdout.strip().splitlines()
+                header = lines[0].split()
+                self.assertEqual(header[0], "169")
+                self.assertEqual(int(header[4]), nx)
+                self.assertEqual(int(header[5]), ny)
+
+                aqua_dir = self.work / f"aqua_{grid}"
+                aqua_dir.mkdir()
+                res_aqua = run_command(["bash", str(aqua_sh), "-g", grid, "288.0", "0"], cwd=aqua_dir)
+                self.assertEqual(res_aqua.returncode, 0, f"aqua.sh failed: {res_aqua.stderr}")
+                for code in ("0129", "0169", "0172", "0173", "0174", "0199", "0200", "0210", "0211", "0212", "0229", "0232"):
+                    sra_file = aqua_dir / f"{prefix}_surf_{code}.sra"
+                    self.assertTrue(sra_file.is_file(), f"Missing {sra_file.name}")
+                    with sra_file.open("r", encoding="ascii") as f:
+                        first_line = f.readline().split()
+                    self.assertEqual(int(first_line[4]), nx)
+                    self.assertEqual(int(first_line[5]), ny)
 
     def test_dir_environment_override(self) -> None:
         """Verify aqua.sh and earth.sh respect DIR environment override when provided."""

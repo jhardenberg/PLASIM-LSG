@@ -327,8 +327,8 @@ The repository supplies conversion helpers under `scripts/`:
 | `nc2sra` | Converts a 2D NetCDF variable to a formatted `.sra` file (`nc2sra input.nc output.sra code [-d YYYYMMDD] [-t HHMM]`). |
 | `derive_lsg_sra.py` | Derives LSG-consistent atmospheric land–sea masks matching LSG ocean bathymetry and vector points across resolutions (T21, T31, T42). |
 | `makesra` | Compiles Fortran conversion utilities for Service format datasets. |
-| `earth.sh` | Extracts and prepares Earth boundary datasets for selected resolutions (T21, T42, and T63). |
-| `aqua.sh` | Generates aquaplanet boundary datasets (all-ocean orography and zero land fraction for T21, T42, and T63). |
+| `earth.sh` | Extracts and prepares Earth boundary datasets for selected resolutions (T21, T31, T42, and T63). |
+| `aqua.sh` | Generates aquaplanet boundary datasets (all-ocean orography and zero land fraction for T21, T31, T42, and T63). |
 
 
 To inspect a checked-in boundary dataset using CDO:

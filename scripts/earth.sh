@@ -9,7 +9,7 @@ function help {
   echo "   sic  : sea-ice cover (0 or 1)"
   echo ""
   echo "Options:"
-  echo "  -g grid       grid (t21/t42/t63, default t21)"
+  echo "  -g grid       grid (t21/t31/t42/t63, default t21)"
   echo "  -h            print this help"
   exit 1
 }
@@ -31,6 +31,8 @@ if [ "$grid" = "t63" ] || [ "$grid" = "T63" ]; then
    tres="N096"
 elif [ "$grid" = "t42" ] || [ "$grid" = "T42" ]; then
    tres="N064"
+elif [ "$grid" = "t31" ] || [ "$grid" = "T31" ]; then
+   tres="N048"
 else
    tres="N032"
 fi
