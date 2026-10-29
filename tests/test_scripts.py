@@ -343,6 +343,20 @@ class MostRunScriptTests(unittest.TestCase):
         self.assertIn('if [ -e ice_output.nc ]; then', most_c)
         self.assertIn('if [ -e lsg_output.nc ]; then', most_c)
 
+    def test_most_c_t63_resolution_option(self) -> None:
+        """Verify most.c defines T63 selection, loops to RES_T63, and docs/examples config includes it."""
+        most_c = (ROOT / "most.c").read_text()
+        self.assertIn('InitNextSelection(Sel,dyn,"T63  [192x96]");', most_c)
+        self.assertIn('char *DimText4;', most_c)
+        self.assertIn('strcpy(DimText4,"T63  [192x96]");', most_c)
+        self.assertIn('for (i=RES_T21 , Sel = SelRes ; i <= RES_T63; ++i , Sel = Sel->Next)', most_c)
+        self.assertIn('for (i = RES_T21 , Sel = SelRes ; i <= RES_T63 ; ++i , Sel = Sel->Next)', most_c)
+        self.assertIn('fputs("export FFTMOD=fft991mod\\n",fp);', most_c)
+        self.assertIn('putenv("FFTMOD=fft991mod");', most_c)
+
+        example_cfg = (ROOT / "docs" / "examples" / "most-earth.cfg").read_text()
+        self.assertIn("T63  [192x96] = 0", example_cfg)
+
     def test_run_script_netcdf_execution_behavior(self) -> None:
         """Verify run script moves .nc directly to output dir on the fly for all components."""
         with tempfile.TemporaryDirectory(prefix="plasim-runscript-netcdf-test-") as tmpdir:

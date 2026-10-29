@@ -288,3 +288,18 @@ or documenting intended behavior as if it were current.
   - `tests/test_defensive.py`: Verified `NOUTPUT_AVG=2` and `SelNetCDFAvg` visibility in `test_defaults_and_netcdf_selection`.
   - `tests/test_scripts.py`: Verified `SelNetCDFAvg` and `NOUTPUT_AVG` generation in `test_most_c_netcdf_output_and_default_directives`.
   - `tests/test_model.py`: Verified in `test_monthly_netcdf_output` that omitting `noutput_avg` defaults to monthly averaging (`noutput_avg=2`).
+
+## MoSt T63 resolution option verification
+
+- Checked `most.c`:
+  - Added `char *DimText4;` and initialized `T63  [192x96]` checkbox selection after `T42  [128x64]`.
+  - Updated `ChangeModel()`: sets `DimText4` label to `T63  [192x96]` for PlaSim/Puma/Sam and hides it for CAT (`no = 1`).
+  - Updated `ChangeResolution()`, `UpdateResolution()`, and `EdiMouseButton()`: extended resolution loops from `RES_T42` to `RES_T63`.
+  - Updated `Build()`: guarded copying of `plasim/dat/T%d*` directory so missing resolution directories do not emit shell errors.
+- Checked documentation:
+  - `docs/user/most.md`: Updated timestep defaults and resolution selection step to include T63 (`[192x96]`).
+  - `docs/examples/most-earth.cfg`: Added `T63  [192x96] = 0` to sample configuration.
+- Checked tests:
+  - `tests/most_input_test.c`: Added `resolutions` and `config_t63` modes.
+  - `tests/test_defensive.py`: Added `test_resolution_options_and_t63_selection` validating T21–T63 options, selection changes, and `.cfg` file parsing.
+  - `tests/test_scripts.py`: Added `test_most_c_t63_resolution_option` checking source directives and sample `.cfg` file contents.
