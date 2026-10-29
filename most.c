@@ -2469,7 +2469,7 @@ int CheckCATNamelist(void)
 int CheckPlasimNamelist(void)
 {
    int i,safe_mpstep;
-   int *mpstep;
+   int *mpstep = NULL;
    double s;
    struct SelStruct *Sel;
    FILE *fp;
@@ -2510,12 +2510,15 @@ int CheckPlasimNamelist(void)
 
    // Set mpstep to a safe value
 
-   if (Resolution > 0) *mpstep = PlasimSteps[Resolution];
-   else
+   if (mpstep)
    {
-      s = log(Latitudes / 32.0) / log(2.0);
-      safe_mpstep = 45.0 / pow(3.0,s);
-      if (*mpstep > safe_mpstep) *mpstep = safe_mpstep;
+      if (Resolution > 0) *mpstep = PlasimSteps[Resolution];
+      else
+      {
+         s = log(Latitudes / 32.0) / log(2.0);
+         safe_mpstep = 45.0 / pow(3.0,s);
+         if (*mpstep > safe_mpstep) *mpstep = safe_mpstep;
+      }
    }
 
    // Make sure # of CPU's is a power of 2 and in the proper range
