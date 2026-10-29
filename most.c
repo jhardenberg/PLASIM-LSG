@@ -1811,7 +1811,7 @@ int WriteRunScript(int model)
    int i;
    int porm;
    FILE *fp;
-   char command[256];
+   char command[1024];
    char cwd[256];
    char run[256];
 
@@ -1948,7 +1948,7 @@ int WriteRunScript(int model)
    }
    fputs("done\n",fp);
    fclose(fp);
-   sprintf(command,"chmod a+x %s",run);
+   snprintf(command,sizeof(command),"chmod a+x %s",run);
    system(command);
    return 1; /* Success */
 }
@@ -2004,7 +2004,7 @@ int WriteRunPPP(void)
 {
    int i;
    FILE *fp;
-   char command[256];
+   char command[1024];
    char run[256];
 
    strcpy(run,ShortModelName[Model]);
@@ -2026,11 +2026,11 @@ int WriteRunPPP(void)
               oro_name,oro_name,oro_name);
    fprintf(fp,"   ./%s >!ppp.out\n",exec_ppp);
    fclose(fp);
-   sprintf(command,"chmod a+x %s",run);
+   snprintf(command,sizeof(command),"chmod a+x %s",run);
    system(command);
    strcpy(command,run);
    BlueMessage("Running PUMA Preprocessor");
-   sprintf(command,"%s/run/%s %s/run",ShortModelName[Model],run_ppp,ShortModelName[Model]);
+   snprintf(command,sizeof(command),"%s/run/%s %s/run",ShortModelName[Model],run_ppp,ShortModelName[Model]);
    system(command);
    OroAno = 0; /* Anomaly applied -> reset it */
    SelAno->iv = 0;
@@ -2081,7 +2081,7 @@ int Build(int model)
    int porm;
    FILE *fp;
    char script_backup[256];
-   char command[256];
+   char command[1024];
    char message[256];
    char bld[256];
    char res[256];
@@ -2182,7 +2182,7 @@ int Build(int model)
    fprintf(fp,"[ $? == 0 ] && cp %s.x ../bin/%s\n",shomo,exec_name);
 
    fclose(fp);
-   sprintf(command,"chmod a+x %s",bld);
+   snprintf(command,sizeof(command),"chmod a+x %s",bld);
    system(command);
 
    sprintf(message,"Building %s - wait a minute!",FullModelName[Model]);
@@ -2196,7 +2196,7 @@ int Build(int model)
       sleep(5);
       return 0; // error
    }
-   sprintf(command,"cp %s/bin/%s %s/run\n",shomo,exec_name,shomo);
+   snprintf(command,sizeof(command),"cp %s/bin/%s %s/run\n",shomo,exec_name,shomo);
    system(command);
 
    // copy CAT simulation namelist to run directory
@@ -2270,7 +2270,7 @@ int BuildPPP(void)
    int i,l,x,y;
    FILE *fp;
    char script_backup[256];
-   char command[256];
+   char command[1024];
    char message[256];
    char bld[256];
    char res[256];
@@ -2304,10 +2304,10 @@ int BuildPPP(void)
    fprintf(fp,"cp ppp.x ../bin/%s\n",exec_ppp);
 
    fclose(fp);
-   sprintf(command,"chmod a+x %s",bld);
+   snprintf(command,sizeof(command),"chmod a+x %s",bld);
    system(command);
 
-   sprintf(command,"%s/bin/%s",ShortModelName[Model],exec_ppp);
+   snprintf(command,sizeof(command),"%s/bin/%s",ShortModelName[Model],exec_ppp);
    if (!(fp = fopen(command,"r")))
    {
       sprintf(message,"Building preprocessor ppp");
@@ -2319,7 +2319,7 @@ int BuildPPP(void)
    }
    else fclose(fp); // Executable exists already
 
-   sprintf(command,"cp %s/bin/%s %s/run\n",ShortModelName[Model],exec_ppp,ShortModelName[Model]);
+   snprintf(command,sizeof(command),"cp %s/bin/%s %s/run\n",ShortModelName[Model],exec_ppp,ShortModelName[Model]);
    system(command);
    return 1; /* Success */
 }
@@ -3672,10 +3672,10 @@ void SaveExit(void)
 
 void SaveRun(void)
 {
-   char command[256];
+   char command[1024];
    BuildScripts();
    if ((noro || Yoden) && !Preprocessed && Model == PUMA) PreProcess();
-   sprintf(command,"%s/run/%s %s/run &",ShortModelName[Model],run_name,ShortModelName[Model]);
+   snprintf(command,sizeof(command),"%s/run/%s %s/run &",ShortModelName[Model],run_name,ShortModelName[Model]);
    system(command);
    printf("\n=== Success: Launched process %s ===\n\n",run_name);
    Exit();
